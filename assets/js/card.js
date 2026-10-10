@@ -7,7 +7,7 @@
 
   var T = {
     pl: {
-      title: "Karol (Szpili): wizytówka",
+      title: P.fullName + ": wizytówka",
       langGroup: "Język strony",
       contactNav: "Kontakt i CV",
       vkAria: "Animowane oko podczas testu Voighta-Kampffa. W tęczówce odbija się kod z Matriksa.",
@@ -50,7 +50,7 @@
       unicornGot: "JEDNOROŻEC"
     },
     en: {
-      title: "Karol (Szpili): contact card",
+      title: P.fullName + ": contact card",
       langGroup: "Page language",
       contactNav: "Contact and CV",
       vkAria: "An animated eye during a Voight-Kampff test. Matrix code reflects in the iris.",
@@ -150,14 +150,14 @@
     Array.prototype.slice.call(nav.querySelectorAll("[data-dyn]")).forEach(function (n) { n.remove(); });
     var c = P.contact;
     var rows = [];
+    if (c.linkedin) rows.push(row(c.linkedin, "linkedin", t("linkedin"), P.fullName || c.linkedin.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), true));
+    if (c.phone) rows.push(row("tel:" + c.phone.replace(/\s+/g, ""), "phone", t("phone"), c.phone, false));
+    if (c.whatsapp) rows.push(row("https://wa.me/" + c.whatsapp, "whatsapp", t("whatsapp"), "+" + c.whatsapp, true));
+    if (c.email) rows.push(row("mailto:" + c.email, "email", t("email"), c.email, false));
+    if (c.telegram) rows.push(row("https://t.me/" + c.telegram, "telegram", t("telegram"), "@" + c.telegram, true));
     P.github.forEach(function (g) {
       rows.push(row("https://github.com/" + g.user, "github", t("github"), "@" + g.user + ": " + L(g.note), true));
     });
-    if (c.email) rows.push(row("mailto:" + c.email, "email", t("email"), c.email, false));
-    if (c.phone) rows.push(row("tel:" + c.phone.replace(/\s+/g, ""), "phone", t("phone"), c.phone, false));
-    if (c.whatsapp) rows.push(row("https://wa.me/" + c.whatsapp, "whatsapp", t("whatsapp"), "+" + c.whatsapp, true));
-    if (c.linkedin) rows.push(row(c.linkedin, "linkedin", t("linkedin"), c.linkedin.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), true));
-    if (c.telegram) rows.push(row("https://t.me/" + c.telegram, "telegram", t("telegram"), "@" + c.telegram, true));
     rows.forEach(function (r) { nav.appendChild(r); });
     bindInterest(rows);
   }

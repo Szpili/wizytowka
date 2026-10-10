@@ -35,7 +35,7 @@
   function strip(url) { return url.replace(/^https?:\/\//, "").replace(/\/$/, ""); }
 
   document.documentElement.lang = lang;
-  document.title = P.name + " (" + P.handle + "): " + T.doc;
+  document.title = P.fullName + ": " + T.doc;
   var sheet = document.getElementById("sheet");
 
   var code = add(sheet, el("div", "code"));
@@ -50,8 +50,7 @@
 
   var head = add(sheet, el("header", "head"));
   var id = add(head, el("div", "id"));
-  var h1 = add(id, el("h1", null, P.name));
-  add(h1, el("span", "handle", "(" + P.handle + ")"));
+  add(id, el("h1", null, P.fullName));
   add(id, el("p", "title", P.title[lang]));
 
   var contact = add(head, el("aside", "contact"));
@@ -59,16 +58,17 @@
   qr.src = "qr-cv.svg";
   qr.alt = strip(P.siteUrl);
   var ul = add(contact, el("ul"));
-  function line(key, value) {
+  function line(key, value, href) {
     var li = add(ul, el("li"));
     add(li, el("span", "k", key + " "));
-    li.appendChild(document.createTextNode(value));
+    var a = add(li, el("a", null, value));
+    a.href = href;
   }
-  line(T.site, strip(P.siteUrl));
-  if (P.contact.email) line(T.email, P.contact.email);
-  if (P.contact.phone) line(T.phone, P.contact.phone);
-  if (P.contact.linkedin) line("in", strip(P.contact.linkedin));
-  P.github.forEach(function (g) { line("gh", "github.com/" + g.user); });
+  line(T.site, strip(P.siteUrl), P.siteUrl);
+  if (P.contact.phone) line(T.phone, P.contact.phone, "tel:" + P.contact.phone.replace(/\s+/g, ""));
+  if (P.contact.email) line(T.email, P.contact.email, "mailto:" + P.contact.email);
+  if (P.contact.linkedin) line("in", strip(P.contact.linkedin).replace(/^(www\.)?linkedin\.com\/in\//, ""), P.contact.linkedin);
+  P.github.forEach(function (g) { line("gh", "github.com/" + g.user, "https://github.com/" + g.user); });
 
   var summary = add(sheet, el("section", "summary"));
   add(summary, el("h2", null, T.summary));

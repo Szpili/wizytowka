@@ -5,6 +5,7 @@
  */
 window.PROFILE = {
   name: "Karol",
+  fullName: "Karol Szubert",
   handle: "Szpili",
   location: { pl: "Polska", en: "Poland" },
   title: { pl: "Twórca systemów AI", en: "AI systems builder" },
@@ -19,9 +20,9 @@ window.PROFILE = {
 
   contact: {
     email: "kontakt@weryta.pl",
-    phone: "",     // np. "+48 600 000 000"
+    phone: "+48 606 493 220",
     whatsapp: "",  // same cyfry, np. "48600000000"
-    linkedin: "",  // pełny adres profilu
+    linkedin: "https://www.linkedin.com/in/karol-szubert-b30797235/",
     telegram: ""   // nazwa bez @
   },
 
