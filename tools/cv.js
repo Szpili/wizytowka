@@ -7,13 +7,13 @@
   var C = P.cvContent[lang];
   var T = {
     pl: {
-      doc: "AI CV", summary: "Profil", projects: "Projekty", skills: "Umiejętności",
+      doc: "AI CV", summary: "Profil", projects: "Projekty", other: "Inne projekty", skills: "Umiejętności",
       principles: "Jak pracuję", languages: "Języki", site: "www", email: "e-mail", phone: "tel.",
       footer: "Wygenerowano z kodu wizytówki: github.com/Szpili/wizytowka",
       vk: "test Voighta-Kampffa: zaliczony"
     },
     en: {
-      doc: "AI CV", summary: "Profile", projects: "Projects", skills: "Skills",
+      doc: "AI CV", summary: "Profile", projects: "Projects", other: "Other projects", skills: "Skills",
       principles: "How I work", languages: "Languages", site: "web", email: "email", phone: "phone",
       footer: "Generated from the source of this card: github.com/Szpili/wizytowka",
       vk: "Voight-Kampff test: passed"
@@ -53,7 +53,6 @@
   var h1 = add(id, el("h1", null, P.name));
   add(h1, el("span", "handle", "(" + P.handle + ")"));
   add(id, el("p", "title", P.title[lang]));
-  add(id, el("p", "role", P.role[lang]));
 
   var contact = add(head, el("aside", "contact"));
   var qr = add(contact, el("img", "qr"));
@@ -88,6 +87,15 @@
     p.points.forEach(function (pt) { add(list, el("li", null, pt)); });
     add(art, el("p", "tags", p.tags));
   });
+  if (C.other && C.other.length) {
+    add(main, el("h2", null, T.other));
+    var others = add(main, el("ul", "other"));
+    C.other.forEach(function (o) {
+      var li = add(others, el("li"));
+      add(li, el("b", null, o.name));
+      li.appendChild(document.createTextNode(": " + o.text));
+    });
+  }
 
   var side = add(cols, el("aside", "side"));
   add(side, el("h2", null, T.skills));

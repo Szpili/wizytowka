@@ -205,6 +205,15 @@ h2 {
   opacity: 0.88;
 }
 
+.other {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #a9c3ba;
+}
+.other li { margin: 0 0 1.1mm; }
+.other b { font-weight: 600; color: #ffffff; }
+
 .side dl { margin: 0; }
 .side dt {
   margin-top: 2.2mm;

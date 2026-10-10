@@ -51,12 +51,20 @@ try {
   const page = await browser.newPage();
   for (const lang of ["pl", "en"]) {
     await page.goto(`${base}/tools/cv.html?lang=${lang}`, { waitUntil: "networkidle" });
+    await page.emulateMedia({ media: "print" });
     await page.evaluate(() => window.CV_READY);
+    // The sheet is exactly one A4 page, so overflow would be clipped silently: check it.
+    const overflow = await page.evaluate(() => {
+      const last = (sel) => { const n = document.querySelector(sel); return n.lastElementChild.getBoundingClientRect().bottom; };
+      const content = Math.max(last(".projects"), last(".side"));
+      const foot = document.querySelector(".foot").getBoundingClientRect().top;
+      return ((content - foot) / 96) * 25.4;
+    });
+    if (overflow > -2) console.warn(`  warning: ${lang} content runs ${overflow.toFixed(1)} mm into the footer, shorten the text in profile.js`);
     const out = join(root, profile.cv[lang]);
     await page.pdf({ path: out, format: "A4", printBackground: true, preferCSSPageSize: true });
     const pages = ((await readFile(out, "latin1")).match(/\/Type\s*\/Page[^s]/g) || []).length;
     console.log(`${profile.cv[lang]}: ${pages} page(s)`);
-    if (pages > 1) console.warn(`  warning: ${profile.cv[lang]} spills onto ${pages} pages, shorten the text in profile.js`);
   }
 
   const og = await browser.newPage({ viewport: { width: 1200, height: 630 } });

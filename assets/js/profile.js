@@ -9,8 +9,8 @@ window.PROFILE = {
   location: { pl: "Polska", en: "Poland" },
   title: { pl: "Twórca systemów AI", en: "AI systems builder" },
   role: {
-    pl: "Buduję systemy AI: agentów, weryfikację odpowiedzi modeli i automatyzacje, z których ludzie naprawdę korzystają.",
-    en: "I build AI systems: agents, verification of model answers, and automations people actually use."
+    pl: "Buduję systemy AI, które da się sprawdzić: weryfikowalną inferencję LLM, odpowiedzi oparte na źródłach i agentów, z których ludzie naprawdę korzystają.",
+    en: "I build AI systems you can check: verifiable LLM inference, source-grounded answers, and agents people actually use."
   },
 
   siteUrl: "https://szpili.github.io/wizytowka/",
@@ -26,12 +26,21 @@ window.PROFILE = {
   },
 
   github: [
-    { user: "Szpili", note: { pl: "strony i produkty", en: "sites and products" } },
+    { user: "Szpili", note: { pl: "projekty i badania", en: "projects and research" } },
     { user: "Szpilmenik", note: { pl: "narzędzia AI", en: "AI tooling" } }
   ],
 
   // Krótka lista na wizytówce.
   projects: [
+    {
+      name: "SIMON",
+      url: "https://github.com/Szpili/SIMON",
+      host: "github.com",
+      desc: {
+        pl: "Weryfikowalna inferencja LLM na niezaufanym sprzęcie: każde zadanie kończy się pokwitowaniem podpisanym Ed25519, które sprawdzisz offline.",
+        en: "Verifiable LLM inference on untrusted hardware: every job ends with an Ed25519-signed receipt you can check offline."
+      }
+    },
     {
       name: "Weryta",
       url: { pl: "https://weryta.pl/pl/", en: "https://weryta.pl/" },
@@ -74,25 +83,34 @@ window.PROFILE = {
   cvContent: {
     pl: {
       summary:
-        "Projektuję i wdrażam systemy, w których modele językowe robią coś pożytecznego i sprawdzalnego: agentów pracujących w Claude Code, weryfikację odpowiedzi AI względem źródeł oraz automatyzacje, które zbierają dane z prawdziwego świata (scrapery, OCR, boty). Prowadzę projekty od pomysłu do działającego produktu: backend, frontend, infrastruktura i dokumentacja po polsku i angielsku.",
+        "Projektuję i wdrażam systemy AI, które da się sprawdzić: rozproszoną inferencję LLM z podpisanymi pokwitowaniami, odpowiedzi oparte na źródłach, agentów w Claude Code i automatyzacje zbierające dane z prawdziwego świata. Mierzę, zanim coś obiecam, i piszę wprost, czego system nie dowodzi.",
       projects: [
         {
-          name: "Weryta",
+          name: "SIMON",
+          link: "github.com/Szpili/SIMON",
+          lead: "Weryfikowalna inferencja LLM na niezaufanym, różnorodnym sprzęcie.",
+          points: [
+            "Sieć P2P w Rust (libp2p, CBOR) rozsyła zadania do węzłów, których nikt centralnie nie kontroluje. Każde zadanie daje pokwitowanie podpisane Ed25519.",
+            "Audyt to jeden forward pass: zmierzony koszt 2,4–9,9% zadania (mediana 7,4%). Pokwitowanie z RTX 3090 zweryfikowane offline na MacBooku z 2012 roku."
+          ],
+          tags: "Rust / libp2p / Ed25519 / vLLM / llama.cpp / weryfikacja inferencji"
+        },
+        {
+          name: "Weryta i seventh-state",
           link: "weryta.pl",
-          lead: "System odpowiedzi AI opartych na źródłach.",
+          lead: "Odpowiedzi AI oparte na źródłach i słownik ocen twierdzeń.",
           points: [
             "Odpowiedź ma etykietę zgodności ze źródłem (np. ENTAILED) i cytowanie, na przykład z Dziennika Ustaw. Baza faktów zmienia się tylko po zweryfikowanym dowodzie.",
-            "Fairy Dice (physix.weryta.pl): ocena w 1–2 kliknięcia na dwóch osiach, prawda i odczucie, zapisywana w ledgerze append-only."
+            "Prawdziwość, ujęcie i odczucie to osobne osie, a „nie wiem” jest pełnoprawną odpowiedzią. Interfejs Fairy Dice zapisuje oceny w ledgerze append-only."
           ],
-          tags: "weryfikacja źródeł / entailment / ledger append-only / PL i EN"
+          tags: "entailment / weryfikacja źródeł / ledger append-only / PL i EN"
         },
         {
           name: "deepseek-workers",
           link: "github.com/Szpilmenik/deepseek-workers",
           lead: "Plugin do Claude Code, który oddaje pracę mechaniczną modelom DeepSeek V4.",
           points: [
-            "Wrapper dsclaude uruchamia claude -p na endpoincie zgodnym z API Anthropic, więc DeepSeek ma pełne narzędzia agenta.",
-            "Reguła routingu w CLAUDE.md kieruje proste partie każdej sesji i subagenta do tańszego modelu. Skill instalacyjny kończy się testem end-to-end."
+            "Wrapper dsclaude uruchamia claude -p na endpoincie zgodnym z API Anthropic, a reguła routingu w CLAUDE.md kieruje tam proste partie każdej sesji i subagenta."
           ],
           tags: "Claude Code / pluginy i skille / DeepSeek API / routing kosztowy"
         },
@@ -101,8 +119,7 @@ window.PROFILE = {
           link: "highscanner.pl",
           lead: "Porównywarka cen medycznej marihuany w polskich aptekach.",
           points: [
-            "Ceny z paragonów od pacjentów (OCR) i z publicznych źródeł. Zdjęcia z PESEL-em lub numerem recepty są odrzucane.",
-            "Apka na Androida, bot na Telegramie i społeczność na Discordzie. Strona w Next.js 16 i Tailwind CSS 4 na Vercelu."
+            "Ceny z paragonów od pacjentów (OCR) i z publicznych źródeł, apka na Androida, bot na Telegramie. Strona w Next.js 16 i Tailwind CSS 4 na Vercelu."
           ],
           tags: "scrapery / OCR / Android / Telegram / Next.js"
         },
@@ -111,38 +128,27 @@ window.PROFILE = {
           link: "skola.weryta.com",
           lead: "Ocena zajęć na dwóch osiach zamiast jednej gwiazdki.",
           points: [
-            "Jedno stuknięcie w kwadrat 5×5: ile się nauczyłem i czy mi się podobało. Bez konta, z jednorazowym żetonem głosu, kody QR dla nauczycieli, backend PHP i MySQL."
+            "Jedno stuknięcie w kwadrat 5×5, bez konta, z jednorazowym żetonem głosu. Kody QR dla nauczycieli, backend PHP i MySQL."
           ],
           tags: "PHP / MySQL / QR / prywatność / i18n"
-        },
-        {
-          name: "Mikrobotech AI",
-          link: "projekt prywatny",
-          lead: "Osobisty asystent AI dla jednego użytkownika.",
-          points: [
-            "Klient OAuth 2.0 z dostępem do Kalendarza Google, Gmaila, Dysku i Kontaktów, działający na własnej maszynie."
-          ],
-          tags: "OAuth 2.0 / Google Workspace API / agent"
-        },
-        {
-          name: "Baza wiedzy dla agentów",
-          link: "projekt prywatny",
-          lead: "Wspólna pamięć dla kilku agentów AI.",
-          points: [
-            "Synchronizacja między urządzeniami, nocna destylacja faktów, wyszukiwanie semantyczne na lokalnych embeddingach (Ollama) i przenośne skille z oceną ryzyka."
-          ],
-          tags: "Python / Ollama / embeddingi / RAG"
         }
       ],
+      other: [
+        { name: "patoshi-forensics", text: "reanaliza bloków Bitcoina 0–70 000; popularna metoda nonce ma próg 19,53% fałszywych trafień." },
+        { name: "claude-desktop-ivy-bridge", text: "Claude Desktop na Macach sprzed Haswella (SIGILL, shim Mach-O)." },
+        { name: "codex-intel-rebuilder", text: "aplikacja Codex przepakowana na Intel Maca (Electron x64)." },
+        { name: "Mikrobotech AI", text: "prywatny asystent AI z dostępem OAuth 2.0 do usług Google." }
+      ],
       skills: [
-        { group: "AI i LLM", items: "Claude Code (pluginy, skille, subagenci), API Anthropic, DeepSeek, Ollama, embeddingi i wyszukiwanie semantyczne, weryfikacja odpowiedzi, routing zadań między modelami" },
-        { group: "Web", items: "TypeScript, React, Next.js, Tailwind CSS, HTML, CSS i JavaScript bez frameworka, PHP, MySQL" },
-        { group: "Automatyzacja i dane", items: "Python, scrapery, OCR, boty na Telegramie, OAuth 2.0, API Google" },
-        { group: "Infrastruktura", items: "Linux, Git i GitHub, GitHub Pages, Vercel, Cloudflare, Tailscale, Syncthing, cron i systemd" }
+        { group: "AI i LLM", items: "Claude Code (pluginy, skille, subagenci), API Anthropic, DeepSeek, vLLM, llama.cpp, Ollama, embeddingi, weryfikacja inferencji i odpowiedzi, routing między modelami" },
+        { group: "Systemy rozproszone", items: "Rust, libp2p (gossipsub, request/response), podpisy Ed25519, CBOR, inferencja na GPU (CUDA) i CPU" },
+        { group: "Web i aplikacje", items: "TypeScript, React, Next.js, Tailwind CSS, Electron, HTML, CSS i JavaScript bez frameworka, PHP, MySQL" },
+        { group: "Dane i automatyzacja", items: "Python, analiza danych z łańcucha bloków, scrapery, OCR, boty na Telegramie, OAuth 2.0, API Google" },
+        { group: "Infrastruktura", items: "Linux, macOS (Mach-O, launchd), Git i GitHub, GitHub Pages, Vercel, Cloudflare, Tailscale" }
       ],
       principles: [
         "Tylko zweryfikowany dowód zmienia to, w co system wierzy.",
-        "Pomyłka to nowy rekord, nigdy edycja.",
+        "Mierzę, zanim obiecam. Tezę, której dane nie bronią, wycofuję.",
         "Tani model do mechaniki, mocny model do osądu.",
         "Oddzielam to, co prawdziwe, od tego, co się podoba."
       ],
@@ -153,25 +159,34 @@ window.PROFILE = {
     },
     en: {
       summary:
-        "I design and ship systems where language models do something useful and checkable: agents that work inside Claude Code, verification of AI answers against sources, and automations that pull data from the real world (scrapers, OCR, bots). I take projects from an idea to a working product: backend, frontend, infrastructure, and docs in Polish and English.",
+        "I design and ship AI systems you can check: distributed LLM inference with signed receipts, source-grounded answers, agents inside Claude Code, and automations that pull data from the real world. I measure before I promise and state plainly what a system does not prove.",
       projects: [
         {
-          name: "Weryta",
+          name: "SIMON",
+          link: "github.com/Szpili/SIMON",
+          lead: "Verifiable LLM inference on untrusted, heterogeneous hardware.",
+          points: [
+            "A Rust P2P network (libp2p, CBOR) dispatches jobs to nodes nobody controls centrally. Every job produces an Ed25519-signed receipt.",
+            "An audit is one forward pass, measured at 2.4–9.9% of the job (median 7.4%). A receipt from an RTX 3090 was verified offline on a 2012 MacBook."
+          ],
+          tags: "Rust / libp2p / Ed25519 / vLLM / llama.cpp / inference verification"
+        },
+        {
+          name: "Weryta and seventh-state",
           link: "weryta.pl",
-          lead: "A system of source-grounded AI answers.",
+          lead: "Source-grounded AI answers and a rating vocabulary for claims.",
           points: [
             "Each answer carries a label for how it relates to its source (e.g. ENTAILED) and a citation, for example from the Polish Journal of Laws. The fact store changes only on verified evidence.",
-            "Fairy Dice (physix.weryta.com): a 1–2 click rating on two axes, truth and feeling, stored in an append-only ledger."
+            "Veracity, framing and feeling are separate axes, and \"I don't know\" is a first-class answer. The Fairy Dice interface stores ratings in an append-only ledger."
           ],
-          tags: "source verification / entailment / append-only ledger / PL and EN"
+          tags: "entailment / source verification / append-only ledger / PL and EN"
         },
         {
           name: "deepseek-workers",
           link: "github.com/Szpilmenik/deepseek-workers",
           lead: "A Claude Code plugin that hands mechanical work to DeepSeek V4 models.",
           points: [
-            "The dsclaude wrapper runs claude -p against an Anthropic-compatible endpoint, so DeepSeek gets the full agent toolset.",
-            "A routing rule in CLAUDE.md sends simple chunks of every session and subagent to the cheaper model. The setup skill ends with a live end-to-end test."
+            "The dsclaude wrapper runs claude -p against an Anthropic-compatible endpoint, and a routing rule in CLAUDE.md sends simple chunks of every session and subagent there."
           ],
           tags: "Claude Code / plugins and skills / DeepSeek API / cost routing"
         },
@@ -180,8 +195,7 @@ window.PROFILE = {
           link: "highscanner.pl",
           lead: "A price tracker for medical cannabis in Polish pharmacies.",
           points: [
-            "Prices come from patients' receipts (OCR) and public sources. Photos showing a national ID or prescription number are rejected.",
-            "An Android app, a Telegram bot and a Discord community. Website in Next.js 16 and Tailwind CSS 4 on Vercel."
+            "Prices from patients' receipts (OCR) and public sources, an Android app and a Telegram bot. Website in Next.js 16 and Tailwind CSS 4 on Vercel."
           ],
           tags: "scrapers / OCR / Android / Telegram / Next.js"
         },
@@ -190,38 +204,27 @@ window.PROFILE = {
           link: "skola.weryta.com",
           lead: "Class feedback on two axes instead of a single star.",
           points: [
-            "One tap on a 5×5 square: how much I learned and whether I liked it. No account, a one-time vote token, QR codes for teachers, a PHP and MySQL backend."
+            "One tap on a 5×5 square, no account, a one-time vote token. QR codes for teachers, a PHP and MySQL backend."
           ],
           tags: "PHP / MySQL / QR / privacy / i18n"
-        },
-        {
-          name: "Mikrobotech AI",
-          link: "private project",
-          lead: "A personal, single-user AI assistant.",
-          points: [
-            "An OAuth 2.0 client with access to Google Calendar, Gmail, Drive and Contacts, running on its owner's machine."
-          ],
-          tags: "OAuth 2.0 / Google Workspace APIs / agent"
-        },
-        {
-          name: "Knowledge base for agents",
-          link: "private project",
-          lead: "Shared memory for several AI agents.",
-          points: [
-            "Sync across devices, a nightly fact distiller, semantic search on local embeddings (Ollama) and portable agent skills with a risk rating."
-          ],
-          tags: "Python / Ollama / embeddings / RAG"
         }
       ],
+      other: [
+        { name: "patoshi-forensics", text: "a reanalysis of Bitcoin blocks 0–70,000; the popular nonce method has a 19.53% false-positive floor." },
+        { name: "claude-desktop-ivy-bridge", text: "Claude Desktop on pre-Haswell Macs (SIGILL, a Mach-O shim)." },
+        { name: "codex-intel-rebuilder", text: "the Codex desktop app repackaged for Intel Macs (x64 Electron)." },
+        { name: "Mikrobotech AI", text: "a private AI assistant with OAuth 2.0 access to Google services." }
+      ],
       skills: [
-        { group: "AI and LLMs", items: "Claude Code (plugins, skills, subagents), Anthropic API, DeepSeek, Ollama, embeddings and semantic search, answer verification, routing work between models" },
-        { group: "Web", items: "TypeScript, React, Next.js, Tailwind CSS, framework-free HTML, CSS and JavaScript, PHP, MySQL" },
-        { group: "Automation and data", items: "Python, scrapers, OCR, Telegram bots, OAuth 2.0, Google APIs" },
-        { group: "Infrastructure", items: "Linux, Git and GitHub, GitHub Pages, Vercel, Cloudflare, Tailscale, Syncthing, cron and systemd" }
+        { group: "AI and LLMs", items: "Claude Code (plugins, skills, subagents), Anthropic API, DeepSeek, vLLM, llama.cpp, Ollama, embeddings, inference and answer verification, routing work between models" },
+        { group: "Distributed systems", items: "Rust, libp2p (gossipsub, request/response), Ed25519 signatures, CBOR, GPU (CUDA) and CPU inference" },
+        { group: "Web and apps", items: "TypeScript, React, Next.js, Tailwind CSS, Electron, framework-free HTML, CSS and JavaScript, PHP, MySQL" },
+        { group: "Data and automation", items: "Python, blockchain data analysis, scrapers, OCR, Telegram bots, OAuth 2.0, Google APIs" },
+        { group: "Infrastructure", items: "Linux, macOS (Mach-O, launchd), Git and GitHub, GitHub Pages, Vercel, Cloudflare, Tailscale" }
       ],
       principles: [
         "Only verified evidence changes what the system believes.",
-        "A mistake is a new record, never an edit.",
+        "Measure before promising. Withdraw any claim the data cannot defend.",
         "A cheap model for mechanics, a strong model for judgment.",
         "Keep what is true apart from what is liked."
       ],
