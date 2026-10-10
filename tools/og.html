@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>OG image</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<style>
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  #sky { position: absolute; }
+  .og {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 500px;
+    gap: 56px;
+    align-items: center;
+    box-sizing: border-box;
+    height: 630px;
+    padding: 0 72px;
+  }
+  .og .name { margin: 0; font-size: 210px; }
+  .og .handle { margin: 18px 0 0; font: 46px/1 var(--crt); color: var(--phosphor-dim); }
+  .og .role { max-width: 26ch; margin: 22px 0 0; font-size: 27px; }
+  .og .url { margin: 28px 0 0; font: 36px/1 var(--crt); color: var(--sodium); }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="og">
+  <div>
+    <h1 class="name" id="og-name"></h1>
+    <p class="handle" id="og-handle"></p>
+    <p class="role" id="og-role"></p>
+    <p class="url" id="og-url"></p>
+  </div>
+  <figure class="vk"><canvas id="vk"></canvas></figure>
+</div>
+<script src="../assets/js/profile.js"></script>
+<script src="../assets/js/sky.js"></script>
+<script src="../assets/js/vk.js"></script>
+<script>
+  var P = window.PROFILE;
+  document.getElementById("og-name").textContent = P.name;
+  document.getElementById("og-handle").textContent = "@" + P.handle;
+  document.getElementById("og-role").textContent = P.role.pl;
+  document.getElementById("og-url").textContent = P.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  Sky.mount(document.getElementById("sky"), { static: true, width: 1200, height: 630, noLane: true, noFlash: true });
+  var strings = { vkPupil: "źrenica", vkHuman: "werdykt: człowiek (raczej)", vkReplicant: "werdykt: replikant", intro: [] };
+  VK.create(document.getElementById("vk"), { skipIntro: true, text: function (k) { return strings[k]; } });
+</script>
+</body>
+</html>

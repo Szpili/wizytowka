@@ -1,0 +1,244 @@
+@font-face {
+  font-family: "VT323";
+  src: url("../assets/fonts/vt323-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "VT323";
+  src: url("../assets/fonts/vt323-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-weight: 400;
+  src: url("../assets/fonts/chakra-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-weight: 400;
+  src: url("../assets/fonts/chakra-400-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-weight: 600;
+  src: url("../assets/fonts/chakra-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-weight: 600;
+  src: url("../assets/fonts/chakra-600-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "DotGothic16";
+  src: url("../assets/fonts/dotgothic-kana.woff2") format("woff2");
+}
+
+@page { size: A4; margin: 0; }
+
+html {
+  background: #060c10;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  margin: 0;
+  color: #dcebe3;
+  font: 400 8.6pt/1.36 "Chakra Petch", sans-serif;
+}
+
+.sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 210mm;
+  height: 296.8mm;
+  padding: 0 14mm 15mm;
+  background:
+    radial-gradient(140mm 70mm at 105mm 305mm, rgba(255, 140, 40, 0.13), transparent 70%),
+    radial-gradient(90mm 60mm at 0 290mm, rgba(255, 61, 139, 0.07), transparent 70%),
+    #060c10;
+  overflow: hidden;
+}
+
+/* Matrix code band along the top edge */
+.code {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 13mm;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 3mm;
+  font: 9pt/1.05 "DotGothic16", monospace;
+  color: #6dffa0;
+  -webkit-mask-image: linear-gradient(#000 20%, transparent);
+  mask-image: linear-gradient(#000 20%, transparent);
+}
+.code span { display: flex; flex-direction: column; }
+.code i { font-style: normal; transform: scaleX(-1); }
+
+.head {
+  display: grid;
+  grid-template-columns: 1fr 76mm;
+  gap: 6mm;
+  align-items: end;
+  padding: 12mm 0 4.4mm;
+  border-bottom: 0.35mm solid rgba(255, 164, 60, 0.6);
+}
+
+h1 {
+  margin: 0;
+  font: 400 44pt/0.8 "VT323", monospace;
+  color: #6dffa0;
+  text-shadow: 0 0 2.4mm rgba(109, 255, 160, 0.42);
+}
+h1 .handle {
+  margin-left: 3mm;
+  font-size: 19pt;
+  color: #3dbd78;
+  text-shadow: none;
+}
+
+.title {
+  margin: 3mm 0 1mm;
+  font: 600 12pt/1.2 "Chakra Petch", sans-serif;
+  color: #ffffff;
+}
+.role {
+  max-width: 108mm;
+  margin: 0;
+  color: #a9c3ba;
+}
+
+.contact {
+  display: grid;
+  grid-template-columns: 23mm 1fr;
+  gap: 3.5mm;
+  align-items: center;
+}
+.qr {
+  display: block;
+  box-sizing: border-box;
+  width: 23mm;
+  height: 23mm;
+  padding: 1.6mm;
+  background: #dcebe3;
+  border-radius: 0.8mm;
+}
+.contact ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 400 11pt/1.18 "VT323", monospace;
+  color: #dcebe3;
+}
+.contact li { white-space: nowrap; }
+.contact .k { color: #ffa43c; }
+
+h2 {
+  margin: 4mm 0 1.8mm;
+  font: 400 17pt/1 "VT323", monospace;
+  color: #6dffa0;
+}
+
+.summary p {
+  max-width: 182mm;
+  margin: 0;
+  font-size: 9.4pt;
+  line-height: 1.46;
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 52mm;
+  gap: 8mm;
+}
+
+.project {
+  margin: 0 0 2.9mm;
+  break-inside: avoid;
+}
+.project h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 3mm;
+  margin: 0;
+  font: 600 10.6pt/1.25 "Chakra Petch", sans-serif;
+  color: #ffffff;
+}
+.project .link {
+  font: 400 11.5pt/1 "VT323", monospace;
+  color: #ffa43c;
+  white-space: nowrap;
+}
+.project .lead { margin: 0.4mm 0 0.8mm; }
+.project ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #a9c3ba;
+}
+.project li {
+  position: relative;
+  margin: 0.4mm 0;
+  padding-left: 3.4mm;
+}
+.project li::before {
+  content: "";
+  position: absolute;
+  left: 0.4mm;
+  top: 1.75mm;
+  width: 1.3mm;
+  height: 0.35mm;
+  background: #6dffa0;
+}
+.project .tags {
+  margin: 0.9mm 0 0;
+  font: 400 10.5pt/1.15 "VT323", monospace;
+  color: #ffa43c;
+  opacity: 0.88;
+}
+
+.side dl { margin: 0; }
+.side dt {
+  margin-top: 2.2mm;
+  font-weight: 600;
+  color: #ffffff;
+}
+.side dt:first-child { margin-top: 0; }
+.side dd {
+  margin: 0.4mm 0 0;
+  color: #a9c3ba;
+}
+.side ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.principles li {
+  margin: 0 0 1.8mm;
+  padding-left: 2.8mm;
+  border-left: 0.4mm solid #6dffa0;
+}
+.langs li { margin: 0 0 0.8mm; color: #a9c3ba; }
+
+.foot {
+  position: absolute;
+  left: 14mm;
+  right: 14mm;
+  bottom: 6mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  padding-top: 2.2mm;
+  border-top: 0.25mm solid rgba(109, 255, 160, 0.18);
+  font: 400 10.5pt/1.2 "VT323", monospace;
+  color: #7b958e;
+}
+.foot .vk { color: #ffa43c; }

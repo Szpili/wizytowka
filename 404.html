@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404: nie ma takiego adresu</title>
+<meta name="theme-color" content="#060c10">
+<link rel="icon" href="/wizytowka/assets/favicon.svg" type="image/svg+xml">
+<style>
+  @font-face { font-family: "VT323"; src: url("/wizytowka/assets/fonts/vt323-latin.woff2") format("woff2"); }
+  @font-face { font-family: "VT323"; src: url("/wizytowka/assets/fonts/vt323-latin-ext.woff2") format("woff2"); unicode-range: U+0100-02BA, U+1E00-1E9F, U+2020, U+20A0-20AB; }
+  :root { color-scheme: dark; }
+  html { background: #060c10; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-content: center;
+    padding: 24px 16px;
+    color: #dcebe3;
+    font: 22px/1.35 "VT323", ui-monospace, monospace;
+    background:
+      radial-gradient(120% 55% at 50% 112%, rgba(255, 140, 40, 0.2), transparent 62%),
+      linear-gradient(#04080b, #071017 55%, #0c1114);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(110px, 34vw, 180px);
+    font-weight: 400;
+    line-height: 0.8;
+    color: #6dffa0;
+    text-shadow: 0 0 8px rgba(109, 255, 160, 0.55), 3px 0 rgba(255, 61, 139, 0.55), -3px 0 rgba(40, 200, 255, 0.45);
+  }
+  p { max-width: 30ch; margin: 18px 0 0; }
+  p + p { margin-top: 6px; color: #8aa69d; }
+  a {
+    display: inline-block;
+    margin-top: 26px;
+    padding: 8px 16px;
+    color: #03100a;
+    background: #6dffa0;
+    text-decoration: none;
+  }
+  a:focus-visible { outline: 2px solid #ffa43c; outline-offset: 3px; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>404</h1>
+    <p>Tego adresu nie ma w Matriksie. Albo to tylko déjà vu.</p>
+    <p lang="en">This address is not in the Matrix. Or it is just déjà vu.</p>
+    <a href="/wizytowka/">Wróć na wizytówkę</a>
+  </main>
+</body>
+</html>
