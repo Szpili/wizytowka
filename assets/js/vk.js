@@ -11,7 +11,7 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function easeOut(t) { return 1 - Math.pow(1 - clamp(t, 0, 1), 3); }
-  function pick() { return KANA[Math.floor(Math.random() * KANA.length)]; }
+  function pick() { return Math.floor(Math.random() * KANA.length); }
 
   function create(canvas, opts) {
     opts = opts || {};
@@ -23,6 +23,9 @@
     var W = 0, H = 0;
     var geo = null;
     var irisTex = null, scan = null, veins = [], lashes = [];
+    // static layers baked once per size, so a frame only draws what moves
+    var back = null, front = null, openUnder = null, openOver = null, glyphs = null, recX = 0;
+    var readout = { key: "", size: 17 };
     var code = [];
 
     var seen = false;
@@ -64,6 +67,7 @@
       makeVeins();
       makeLashes();
       makeCode();
+      buildLayers();
     }
 
     function makeIris(R) {
@@ -142,6 +146,102 @@
       return c;
     }
 
+    function makeLayer(paint) {
+      var c = document.createElement("canvas");
+      c.width = canvas.width;
+      c.height = canvas.height;
+      var g = c.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paint(g);
+      return c;
+    }
+
+    function buildLayers() {
+      back = makeLayer(function (g) {
+        g.fillStyle = "#0b0704";
+        g.fillRect(0, 0, W, H);
+        g.strokeStyle = "rgba(255,164,60,0.05)";
+        g.lineWidth = 1;
+        g.beginPath();
+        for (var x = 0; x < W; x += 20) { g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, H); }
+        for (var y = 0; y < H; y += 20) { g.moveTo(0, y + 0.5); g.lineTo(W, y + 0.5); }
+        g.stroke();
+        var skin = g.createRadialGradient(geo.cx, geo.cy, 8, geo.cx, geo.cy, geo.hw * 1.45);
+        skin.addColorStop(0, "rgba(150,78,28,0.34)");
+        skin.addColorStop(0.6, "rgba(90,44,14,0.16)");
+        skin.addColorStop(1, "rgba(0,0,0,0)");
+        g.fillStyle = skin;
+        g.fillRect(0, 0, W, H);
+      });
+      front = makeLayer(function (g) {
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.drawImage(scan, 0, 0);
+        g.restore();
+        var vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+        vg.addColorStop(0, "rgba(0,0,0,0)");
+        vg.addColorStop(1, "rgba(0,0,0,0.62)");
+        g.fillStyle = vg;
+        g.fillRect(0, 0, W, H);
+        g.strokeStyle = "rgba(255,164,60,0.55)";
+        g.lineWidth = 1.2;
+        var m = 9, k = 13;
+        g.beginPath();
+        g.moveTo(m, m + k); g.lineTo(m, m); g.lineTo(m + k, m);
+        g.moveTo(W - m - k, m); g.lineTo(W - m, m); g.lineTo(W - m, m + k);
+        g.moveTo(m, H - m - k); g.lineTo(m, H - m); g.lineTo(m + k, H - m);
+        g.moveTo(W - m - k, H - m); g.lineTo(W - m, H - m); g.lineTo(W - m, H - m - k);
+        g.stroke();
+        g.font = '17px "VT323", monospace';
+        g.textBaseline = "alphabetic";
+        g.fillStyle = "rgba(255,164,60,0.85)";
+        g.textAlign = "left";
+        g.fillText("VOIGHT-KAMPFF", 18, 26);
+        g.textAlign = "right";
+        g.fillText("REC", W - 18, 26);
+        recX = W - 18 - g.measureText("REC").width - 9;
+      });
+      openUnder = makeLayer(function (g) {
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.drawImage(back, 0, 0);
+        g.restore();
+        paintUnder(g, 1);
+      });
+      openOver = makeLayer(function (g) {
+        paintOver(g, 1);
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.drawImage(front, 0, 0);
+        g.restore();
+      });
+      glyphs = makeGlyphs();
+      readout.key = "";
+    }
+
+    // Mirrored code glyphs in two colours (tail, head), drawn with drawImage instead of fillText.
+    function makeGlyphs() {
+      var cw = Math.ceil(11 * dpr), ch = Math.ceil(12 * dpr);
+      var c = document.createElement("canvas");
+      c.width = cw * KANA.length;
+      c.height = ch * 2;
+      var g = c.getContext("2d");
+      g.font = 10 * dpr + 'px "DotGothic16", monospace';
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      ["#6dffa0", "#d8ffe8"].forEach(function (color, row) {
+        g.fillStyle = color;
+        for (var i = 0; i < KANA.length; i++) {
+          g.save();
+          g.translate(i * cw + cw / 2, row * ch + ch / 2);
+          g.scale(-1, 1);
+          g.fillText(KANA[i], 0, 0);
+          g.restore();
+        }
+      });
+      return { canvas: c, cw: cw, ch: ch };
+    }
+
     function makeVeins() {
       veins = [];
       for (var i = 0; i < 9; i++) {
@@ -195,13 +295,13 @@
       };
     }
 
-    function almond(o) {
+    function almond(o, g) {
       var c = lidCurves(o);
-      ctx.beginPath();
-      ctx.moveTo(c.upper[0], c.upper[1]);
-      ctx.bezierCurveTo(c.upper[2], c.upper[3], c.upper[4], c.upper[5], c.upper[6], c.upper[7]);
-      ctx.bezierCurveTo(c.lower[2], c.lower[3], c.lower[4], c.lower[5], c.lower[6], c.lower[7]);
-      ctx.closePath();
+      g.beginPath();
+      g.moveTo(c.upper[0], c.upper[1]);
+      g.bezierCurveTo(c.upper[2], c.upper[3], c.upper[4], c.upper[5], c.upper[6], c.upper[7]);
+      g.bezierCurveTo(c.lower[2], c.lower[3], c.lower[4], c.lower[5], c.lower[6], c.lower[7]);
+      g.closePath();
     }
 
     function bez(p, t) {
@@ -214,148 +314,137 @@
 
     /* ---------- drawing ---------- */
 
-    function drawBackdrop() {
-      ctx.fillStyle = "#0b0704";
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.strokeStyle = "rgba(255,164,60,0.05)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (var x = 0; x < W; x += 20) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
-      for (var y = 0; y < H; y += 20) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
-      ctx.stroke();
-
-      var skin = ctx.createRadialGradient(geo.cx, geo.cy, 8, geo.cx, geo.cy, geo.hw * 1.45);
-      skin.addColorStop(0, "rgba(150,78,28,0.34)");
-      skin.addColorStop(0.6, "rgba(90,44,14,0.16)");
-      skin.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = skin;
-      ctx.fillRect(0, 0, W, H);
-    }
-
-    function drawEye(o, t) {
-      var g = geo, R = g.R;
-      var ix = g.cx + gaze.x, iy = g.cy + gaze.y;
-
-      // eyelid volume between the crease and the lid line
+    // Skin, eyelid volume and the white of the eye: everything under the iris.
+    function paintUnder(g, o) {
+      var G = geo, R = G.R;
       var lid = lidCurves(o), cr = lidCurves(Math.max(o, 0.35));
       var c1 = [cr.upper[0] + 10, cr.upper[1] - 10, cr.upper[2], cr.upper[3] - 16, cr.upper[4], cr.upper[5] - 16, cr.upper[6] - 8, cr.upper[7] - 12];
-      ctx.fillStyle = "rgba(124,62,22,0.3)";
+      g.fillStyle = "rgba(124,62,22,0.3)";
+      g.beginPath();
+      g.moveTo(lid.upper[0], lid.upper[1]);
+      g.bezierCurveTo(lid.upper[2], lid.upper[3], lid.upper[4], lid.upper[5], lid.upper[6], lid.upper[7]);
+      g.lineTo(c1[6], c1[7]);
+      g.bezierCurveTo(c1[4], c1[5], c1[2], c1[3], c1[0], c1[1]);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = "rgba(20,8,2,0.55)";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(c1[0], c1[1]);
+      g.bezierCurveTo(c1[2], c1[3], c1[4], c1[5], c1[6], c1[7]);
+      g.stroke();
+      g.strokeStyle = "rgba(124,62,22,0.22)";
+      g.lineWidth = 6;
+      g.beginPath();
+      g.moveTo(lid.lower[0], lid.lower[1] + 4);
+      g.bezierCurveTo(lid.lower[2], lid.lower[3] + 4, lid.lower[4], lid.lower[5] + 4, lid.lower[6], lid.lower[7] + 3);
+      g.stroke();
+      if (o <= 0.02) return;
+
+      g.save();
+      almond(o, g);
+      g.clip();
+      var sclera = g.createRadialGradient(G.cx, G.cy, R * 0.9, G.cx, G.cy, G.hw * 1.05);
+      sclera.addColorStop(0, "#f4c793");
+      sclera.addColorStop(0.45, "#d18c4c");
+      sclera.addColorStop(0.82, "#7b3f17");
+      sclera.addColorStop(1, "#2e1405");
+      g.fillStyle = sclera;
+      g.fillRect(G.L.x - 4, G.cy - G.up - 4, G.hw * 2 + 8, G.up + G.lo + 8);
+      g.strokeStyle = "rgba(110,28,8,0.4)";
+      g.lineWidth = 0.7;
+      g.beginPath();
+      for (var v = 0; v < veins.length; v++) {
+        var pts = veins[v];
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (var p = 1; p < pts.length; p++) g.lineTo(pts[p][0], pts[p][1]);
+      }
+      g.stroke();
+      g.fillStyle = "rgba(176,72,40,0.7)";
+      g.beginPath();
+      g.ellipse(G.L.x + 8, G.L.y - 1, 7, 4.5, -0.1, 0, TAU);
+      g.fill();
+      g.restore();
+    }
+
+    // The only part that moves every frame: iris, pupil, reflection, catchlights.
+    function paintIris(o, ix, iy) {
+      var R = geo.R;
+      ctx.save();
+      almond(o, ctx);
+      ctx.clip();
+      ctx.drawImage(irisTex, ix - R - 2, iy - R - 2, 2 * R + 4, 2 * R + 4);
+
+      var pr = R * pupil.r;
+      var pg = ctx.createRadialGradient(ix, iy, pr * 0.55, ix, iy, pr * 1.08);
+      pg.addColorStop(0, "#000");
+      pg.addColorStop(0.86, "rgba(0,0,0,0.97)");
+      pg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = pg;
       ctx.beginPath();
-      ctx.moveTo(lid.upper[0], lid.upper[1]);
-      ctx.bezierCurveTo(lid.upper[2], lid.upper[3], lid.upper[4], lid.upper[5], lid.upper[6], lid.upper[7]);
-      ctx.lineTo(c1[6], c1[7]);
-      ctx.bezierCurveTo(c1[4], c1[5], c1[2], c1[3], c1[0], c1[1]);
-      ctx.closePath();
+      ctx.arc(ix, iy, pr * 1.08, 0, TAU);
       ctx.fill();
-      ctx.strokeStyle = "rgba(20,8,2,0.55)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(c1[0], c1[1]);
-      ctx.bezierCurveTo(c1[2], c1[3], c1[4], c1[5], c1[6], c1[7]);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(124,62,22,0.22)";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(lid.lower[0], lid.lower[1] + 4);
-      ctx.bezierCurveTo(lid.lower[2], lid.lower[3] + 4, lid.lower[4], lid.lower[5] + 4, lid.lower[6], lid.lower[7] + 3);
-      ctx.stroke();
 
-      if (o > 0.02) {
-        ctx.save();
-        almond(o);
-        ctx.clip();
-
-        var sclera = ctx.createRadialGradient(ix, iy, R * 0.9, g.cx, g.cy, g.hw * 1.05);
-        sclera.addColorStop(0, "#f4c793");
-        sclera.addColorStop(0.45, "#d18c4c");
-        sclera.addColorStop(0.82, "#7b3f17");
-        sclera.addColorStop(1, "#2e1405");
-        ctx.fillStyle = sclera;
-        ctx.fillRect(g.L.x - 4, g.cy - g.up - 4, g.hw * 2 + 8, g.up + g.lo + 8);
-
-        ctx.strokeStyle = "rgba(110,28,8,0.4)";
-        ctx.lineWidth = 0.7;
+      // Replicant eyeshine
+      if (replicant) {
+        var es = ctx.createRadialGradient(ix, iy, 0, ix, iy, pr);
+        es.addColorStop(0, "rgba(255,80,40,0.85)");
+        es.addColorStop(0.6, "rgba(220,40,20,0.45)");
+        es.addColorStop(1, "rgba(200,30,10,0)");
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = es;
         ctx.beginPath();
-        for (var v = 0; v < veins.length; v++) {
-          var pts = veins[v];
-          ctx.moveTo(pts[0][0], pts[0][1]);
-          for (var p = 1; p < pts.length; p++) ctx.lineTo(pts[p][0], pts[p][1]);
-        }
-        ctx.stroke();
-
-        ctx.fillStyle = "rgba(176,72,40,0.7)";
-        ctx.beginPath();
-        ctx.ellipse(g.L.x + 8, g.L.y - 1, 7, 4.5, -0.1, 0, TAU);
+        ctx.arc(ix, iy, pr, 0, TAU);
         ctx.fill();
-
-        ctx.drawImage(irisTex, ix - R - 2, iy - R - 2, 2 * R + 4, 2 * R + 4);
-
-        var pr = R * pupil.r;
-        var pg = ctx.createRadialGradient(ix, iy, pr * 0.55, ix, iy, pr * 1.08);
-        pg.addColorStop(0, "#000");
-        pg.addColorStop(0.86, "rgba(0,0,0,0.97)");
-        pg.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = pg;
-        ctx.beginPath();
-        ctx.arc(ix, iy, pr * 1.08, 0, TAU);
-        ctx.fill();
-
-        // Replicant eyeshine
-        if (replicant) {
-          var es = ctx.createRadialGradient(ix, iy, 0, ix, iy, pr);
-          es.addColorStop(0, "rgba(255,80,40,0.85)");
-          es.addColorStop(0.6, "rgba(220,40,20,0.45)");
-          es.addColorStop(1, "rgba(200,30,10,0)");
-          ctx.globalCompositeOperation = "lighter";
-          ctx.fillStyle = es;
-          ctx.beginPath();
-          ctx.arc(ix, iy, pr, 0, TAU);
-          ctx.fill();
-          ctx.globalCompositeOperation = "source-over";
-        }
-
-        drawCode(ix, iy, R);
-
-        // catchlights
-        ctx.fillStyle = "rgba(255,238,215,0.85)";
-        roundRect(ix - R * 0.52, iy - R * 0.5, R * 0.3, R * 0.2, R * 0.06);
-        ctx.fill();
-        ctx.fillStyle = "rgba(255,238,215,0.45)";
-        ctx.beginPath();
-        ctx.arc(ix + R * 0.3, iy + R * 0.32, Math.max(1.2, R * 0.04), 0, TAU);
-        ctx.fill();
-
-        // upper lid shadow
-        var top = g.cy - g.up * o;
-        var ls = ctx.createLinearGradient(0, top, 0, top + R * 0.95);
-        ls.addColorStop(0, "rgba(15,6,1,0.78)");
-        ls.addColorStop(1, "rgba(15,6,1,0)");
-        ctx.fillStyle = ls;
-        ctx.fillRect(g.L.x, top, g.hw * 2, R * 0.95);
-        ctx.restore();
+        ctx.globalCompositeOperation = "source-over";
       }
 
-      // lids
-      var c = lidCurves(o);
-      ctx.strokeStyle = "#160902";
-      ctx.lineCap = "round";
-      ctx.lineWidth = 3.4;
-      ctx.beginPath();
-      ctx.moveTo(c.upper[0], c.upper[1]);
-      ctx.bezierCurveTo(c.upper[2], c.upper[3], c.upper[4], c.upper[5], c.upper[6], c.upper[7]);
-      ctx.stroke();
-      ctx.lineWidth = 1.8;
-      ctx.strokeStyle = "#2b1206";
-      ctx.beginPath();
-      ctx.moveTo(c.lower[0], c.lower[1]);
-      ctx.bezierCurveTo(c.lower[2], c.lower[3], c.lower[4], c.lower[5], c.lower[6], c.lower[7]);
-      ctx.stroke();
+      drawCode(ix, iy, R);
 
-      // lashes
-      ctx.strokeStyle = "#120601";
-      ctx.lineWidth = 1.2;
+      ctx.fillStyle = "rgba(255,238,215,0.85)";
+      roundRect(ix - R * 0.52, iy - R * 0.5, R * 0.3, R * 0.2, R * 0.06);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,238,215,0.45)";
       ctx.beginPath();
+      ctx.arc(ix + R * 0.3, iy + R * 0.32, Math.max(1.2, R * 0.04), 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Upper-lid shadow, lid lines and lashes: everything over the iris.
+    function paintOver(g, o) {
+      var G = geo, R = G.R;
+      if (o > 0.02) {
+        g.save();
+        almond(o, g);
+        g.clip();
+        var top = G.cy - G.up * o;
+        var ls = g.createLinearGradient(0, top, 0, top + R * 0.95);
+        ls.addColorStop(0, "rgba(15,6,1,0.78)");
+        ls.addColorStop(1, "rgba(15,6,1,0)");
+        g.fillStyle = ls;
+        g.fillRect(G.L.x, top, G.hw * 2, R * 0.95);
+        g.restore();
+      }
+
+      var c = lidCurves(o);
+      g.strokeStyle = "#160902";
+      g.lineCap = "round";
+      g.lineWidth = 3.4;
+      g.beginPath();
+      g.moveTo(c.upper[0], c.upper[1]);
+      g.bezierCurveTo(c.upper[2], c.upper[3], c.upper[4], c.upper[5], c.upper[6], c.upper[7]);
+      g.stroke();
+      g.lineWidth = 1.8;
+      g.strokeStyle = "#2b1206";
+      g.beginPath();
+      g.moveTo(c.lower[0], c.lower[1]);
+      g.bezierCurveTo(c.lower[2], c.lower[3], c.lower[4], c.lower[5], c.lower[6], c.lower[7]);
+      g.stroke();
+
+      g.strokeStyle = "#120601";
+      g.lineWidth = 1.2;
+      g.beginPath();
       for (var i = 0; i < lashes.length; i++) {
         var l = lashes[i];
         var a = bez(c.upper, l.t), b = bez(c.upper, Math.min(1, l.t + 0.01));
@@ -364,11 +453,34 @@
         var out = (l.t - 0.4) * 1.2 + l.tilt;
         var dirY = ny * clamp(o * 1.6 - 0.6, -0.7, 1);
         var ex = a.x + (nx + out) * l.len, ey = a.y + dirY * l.len;
-        ctx.moveTo(a.x, a.y);
-        ctx.quadraticCurveTo(a.x + nx * l.len * 0.5, a.y + dirY * l.len * 0.75, ex, ey);
+        g.moveTo(a.x, a.y);
+        g.quadraticCurveTo(a.x + nx * l.len * 0.5, a.y + dirY * l.len * 0.75, ex, ey);
       }
-      ctx.stroke();
-      ctx.lineCap = "butt";
+      g.stroke();
+      g.lineCap = "butt";
+    }
+
+    function blit(layer) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(layer, 0, 0);
+      ctx.restore();
+    }
+
+    // With the eye fully open, back+under and over+front are single baked images.
+    function drawScene(o) {
+      var ix = geo.cx + gaze.x, iy = geo.cy + gaze.y;
+      if (o >= 0.999) {
+        blit(openUnder);
+        paintIris(1, ix, iy);
+        blit(openOver);
+      } else {
+        blit(back);
+        paintUnder(ctx, o);
+        if (o > 0.02) paintIris(o, ix, iy);
+        paintOver(ctx, o);
+        blit(front);
+      }
     }
 
     function roundRect(x, y, w, h, r) {
@@ -388,49 +500,30 @@
       ctx.arc(ix, iy, R * 0.98, 0, TAU);
       ctx.clip();
       ctx.globalCompositeOperation = "lighter";
-      ctx.font = '10px "DotGothic16", monospace';
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      var gw = glyphs.cw / dpr, gh = glyphs.ch / dpr;
       var step = 11;
       for (var i = 0; i < code.length; i++) {
         var col = code[i];
         var s = Math.sin((col.u * Math.PI) / 2);
-        var sx = Math.cos((col.u * Math.PI) / 2) * 0.85 + 0.15;
-        var x = ix + R * 0.95 * s;
+        var dw = gw * (Math.cos((col.u * Math.PI) / 2) * 0.85 + 0.15);
+        var x = ix + R * 0.95 * s - dw / 2;
         for (var k = 0; k < col.chars.length; k++) {
           var y = iy - R + col.y - k * step;
           if (y < iy - R - step || y > iy + R + step) continue;
           var f = 1 - k / col.chars.length;
           ctx.globalAlpha = 0.62 * f * f * (replicant ? 0.6 : 1);
-          ctx.fillStyle = k === 0 ? "#d8ffe8" : "#6dffa0";
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.scale(-sx, 1);
-          ctx.fillText(col.chars[k], 0, 0);
-          ctx.restore();
+          ctx.drawImage(glyphs.canvas, col.chars[k] * glyphs.cw, k === 0 ? glyphs.ch : 0, glyphs.cw, glyphs.ch, x, y - gh / 2, dw, gh);
         }
       }
       ctx.restore();
     }
 
     function drawOverlay(t) {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(scan, 0, 0);
-      ctx.restore();
-
-      var vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
-      vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(0,0,0,0.62)");
-      ctx.fillStyle = vg;
-      ctx.fillRect(0, 0, W, H);
-
       var amber = "rgba(255,164,60,0.85)";
-      var faint = "rgba(255,164,60,0.22)";
 
       // crosshair segments around the pupil
       var ix = geo.cx + gaze.x, iy = geo.cy + gaze.y, R = geo.R;
-      ctx.strokeStyle = faint;
+      ctx.strokeStyle = "rgba(255,164,60,0.22)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(ix - R - 26, iy); ctx.lineTo(ix - R - 6, iy);
@@ -439,27 +532,22 @@
       ctx.moveTo(ix, iy + R + 4); ctx.lineTo(ix, iy + R + 18);
       ctx.stroke();
 
-      // viewfinder corners
-      ctx.strokeStyle = "rgba(255,164,60,0.55)";
-      ctx.lineWidth = 1.2;
-      var m = 9, k = 13;
-      ctx.beginPath();
-      ctx.moveTo(m, m + k); ctx.lineTo(m, m); ctx.lineTo(m + k, m);
-      ctx.moveTo(W - m - k, m); ctx.lineTo(W - m, m); ctx.lineTo(W - m, m + k);
-      ctx.moveTo(m, H - m - k); ctx.lineTo(m, H - m); ctx.lineTo(m + k, H - m);
-      ctx.moveTo(W - m - k, H - m); ctx.lineTo(W - m, H - m); ctx.lineTo(W - m, H - m - k);
-      ctx.stroke();
-
       var mm = 2 + ((pupil.r - 0.2) / 0.4) * 6;
       var left = text("vkPupil") + " " + mm.toFixed(1) + " mm";
       var right = text(replicant ? "vkReplicant" : "vkHuman");
-      // shrink the readouts on narrow screens so they never collide
-      var size = 17;
-      ctx.font = size + 'px "VT323", monospace';
-      while (size > 12 && ctx.measureText(left).width + ctx.measureText(right).width + 52 > W) {
-        size -= 1;
+      // shrink the readouts on narrow screens so they never collide (VT323 is monospaced)
+      var key = left.length + "|" + right;
+      if (key !== readout.key) {
+        var size = 17;
         ctx.font = size + 'px "VT323", monospace';
+        while (size > 12 && ctx.measureText(left).width + ctx.measureText(right).width + 52 > W) {
+          size -= 1;
+          ctx.font = size + 'px "VT323", monospace';
+        }
+        readout.key = key;
+        readout.size = size;
       }
+      ctx.font = readout.size + 'px "VT323", monospace';
       ctx.textBaseline = "alphabetic";
       ctx.fillStyle = amber;
       ctx.textAlign = "left";
@@ -467,17 +555,10 @@
       ctx.textAlign = "right";
       ctx.fillStyle = replicant ? "rgba(255,110,80,0.95)" : amber;
       ctx.fillText(right, W - 18, H - 15);
-      ctx.font = '17px "VT323", monospace';
-      ctx.textAlign = "left";
-      ctx.fillStyle = amber;
-      ctx.fillText("VOIGHT-KAMPFF", 18, 26);
-      ctx.textAlign = "right";
-      ctx.fillStyle = amber;
-      ctx.fillText("REC", W - 18, 26);
       if (reduce || Math.floor(t * 1.2) % 2 === 0) {
         ctx.fillStyle = "rgba(255,70,50,0.95)";
         ctx.beginPath();
-        ctx.arc(W - 18 - ctx.measureText("REC").width - 9, 21, 3.5, 0, TAU);
+        ctx.arc(recX, 21, 3.5, 0, TAU);
         ctx.fill();
       }
     }
@@ -543,10 +624,13 @@
       }
       var kx = gaze.tx * geo.gx, ky = gaze.ty * geo.gy;
       var K = 260, C = 2 * Math.sqrt(K);
-      gaze.vx += (K * (kx - gaze.x) - C * gaze.vx) * dt;
-      gaze.vy += (K * (ky - gaze.y) - C * gaze.vy) * dt;
-      gaze.x += gaze.vx * dt;
-      gaze.y += gaze.vy * dt;
+      var n = Math.ceil(dt * 120), h = dt / n;
+      for (var s = 0; s < n; s++) {
+        gaze.vx += (K * (kx - gaze.x) - C * gaze.vx) * h;
+        gaze.vy += (K * (ky - gaze.y) - C * gaze.vy) * h;
+        gaze.x += gaze.vx * h;
+        gaze.y += gaze.vy * h;
+      }
 
       // pupil: dilates slowly, constricts fast
       flashLeft = Math.max(0, flashLeft - dt);
@@ -599,8 +683,7 @@
       }
       if (state === "power") {
         stateT += dt;
-        drawBackdrop();
-        drawEye(0, now);
+        drawScene(0);
         drawOverlay(now);
         drawPower(stateT / 0.32);
         if (stateT >= 0.32) { state = "open"; stateT = 0; fireOpen(); }
@@ -618,8 +701,7 @@
         o = reduce ? 1 : openness();
       }
       if (!reduce) update(dt);
-      drawBackdrop();
-      drawEye(o, now);
+      drawScene(o);
       drawOverlay(now);
     }
 
@@ -629,14 +711,18 @@
       if (opts.onOpen) opts.onOpen();
     }
 
+    // ~30 fps is plenty for a slow-moving eye and halves the work
     function frame(ts) {
       if (!running) return;
+      raf = requestAnimationFrame(frame);
       var t = ts / 1000;
-      var dt = last ? Math.min(0.05, t - last) : 0.016;
+      if (!last) { last = t; return; }
+      var gap = t - last;
+      if (gap < 1 / 30 - 0.004) return;
       last = t;
+      var dt = Math.min(0.1, gap);
       now += dt;
       render(dt);
-      raf = requestAnimationFrame(frame);
     }
 
     function start() {
@@ -707,6 +793,7 @@
       ? Promise.all([document.fonts.load('17px "VT323"', "aąćęłńóśźż"), document.fonts.load('10px "DotGothic16"', "ｱ")])
       : Promise.resolve();
     fontWait.catch(function () {}).then(function () {
+      buildLayers();
       if (reduce) { render(0); }
       else start();
     });

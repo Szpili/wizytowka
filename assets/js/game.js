@@ -29,6 +29,16 @@
   function hash(n) { var x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
   function kana() { return Math.floor(Math.random() * KANA.length); }
 
+  // Static parts of a building are painted once into their own small canvas,
+  // in local coordinates, so lit windows stay put while the city scrolls.
+  function sprite(sw, sh, paint) {
+    var c = document.createElement("canvas");
+    c.width = Math.max(1, Math.ceil(sw));
+    c.height = Math.max(1, Math.ceil(sh));
+    paint(c.getContext("2d"));
+    return c;
+  }
+
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---------- DOM ---------- */
@@ -147,6 +157,27 @@
     for (var i = 0; i < nDeco; i++) {
       b.deco.push({ dx: rand(10, b.w - 14), kind: Math.random() < 0.6 ? "antenna" : "tank", h: Math.round(rand(8, 18)), blink: rand(0, 6) });
     }
+    b.img = sprite(b.w, H - b.top, function (g) {
+      var bh = H - b.top;
+      g.fillStyle = C.bld;
+      g.fillRect(0, 0, b.w, bh);
+      g.fillStyle = C.bldEdge;
+      g.fillRect(0, 0, 1, bh);
+      g.fillStyle = b.rim;
+      g.fillRect(0, 0, b.w, 1);
+      g.globalAlpha = 0.35;
+      g.fillRect(0, 1, b.w, 2);
+      g.globalAlpha = 1;
+      for (var y = 8; y < bh; y += 9) {
+        for (var wx = 4; wx < b.w - 4; wx += 7) {
+          var hs = hash(b.seed + wx * 0.37 + y * 1.3);
+          if (hs < 0.22) {
+            g.fillStyle = hs < 0.15 ? "rgba(255,179,90,0.32)" : "rgba(95,232,255,0.28)";
+            g.fillRect(wx, y, 2, 3);
+          }
+        }
+      }
+    });
     w.buildings.push(b);
     if (prev) populate(b, prev, gap);
   }
@@ -220,6 +251,44 @@
     } else {
       item = { kind: "tower", x: x, w: Math.round(rand(14, 36)), h: Math.round(rand(40, 96)), seed: Math.random() * 99 };
     }
+    if (item.kind === "tower") {
+      item.img = sprite(item.w, item.h, function (g) {
+        g.fillStyle = "#0a131c";
+        g.fillRect(0, 0, item.w, item.h);
+        for (var y = 3; y < item.h; y += 4) {
+          for (var wx = 2; wx < item.w - 1; wx += 3) {
+            var hs = hash(item.seed * 13 + wx * 7 + y * 3);
+            if (hs < 0.1) {
+              g.fillStyle = hs < 0.07 ? "rgba(255,179,90,0.6)" : "rgba(95,232,255,0.5)";
+              g.fillRect(wx, y, 1, 1);
+            }
+          }
+        }
+      });
+    } else if (item.kind === "pyramid") {
+      // Tyrell-style stepped pyramid with its glow; sprite origin is (x - 60, H - 150)
+      item.img = sprite(item.w + 120, 150, function (g) {
+        var glow = g.createRadialGradient(60 + item.w / 2, 110, 4, 60 + item.w / 2, 110, 110);
+        glow.addColorStop(0, "rgba(255,150,60,0.16)");
+        glow.addColorStop(1, "rgba(255,150,60,0)");
+        g.fillStyle = glow;
+        g.fillRect(0, 0, item.w + 120, 150);
+        var steps = 14;
+        for (var s = 0; s < steps; s++) {
+          var tw = Math.round(item.w * (1 - s / steps) * 0.92 + 18);
+          var ty = Math.round(142 - (s + 1) * (item.h / steps));
+          var tx = Math.round(60 + (item.w - tw) / 2);
+          g.fillStyle = "#0d1822";
+          g.fillRect(tx, ty, tw, Math.ceil(item.h / steps) + 1);
+          for (var wx = tx + 2; wx < tx + tw - 2; wx += 3) {
+            if (hash(item.seed + s * 31 + wx) < 0.42) {
+              g.fillStyle = hash(wx + s) < 0.8 ? "rgba(255,179,90,0.75)" : "rgba(255,240,200,0.9)";
+              g.fillRect(wx, ty + 2, 1, 1);
+            }
+          }
+        }
+      });
+    }
     w.far.push(item);
   }
 
@@ -227,12 +296,29 @@
     var prev = w.mid[w.mid.length - 1];
     var x = first ? -6 : prev.x + prev.w + rand(2, 14);
     var r = Math.random();
-    w.mid.push({
+    var m = {
       x: x, w: Math.round(rand(26, 62)), h: Math.round(rand(74, 138)), seed: Math.random() * 99,
       sign: r < 0.32 ? { color: Math.random() < 0.55 ? "p" : "c", chars: [kana(), kana(), kana(), kana()].slice(0, 3 + Math.floor(Math.random() * 2)), off: 0 } : null,
       screen: r >= 0.32 && r < 0.46,
       code: r >= 0.46 && r < 0.56 ? [0, 1, 2, 3].map(function () { return { y: rand(0, 60), s: rand(14, 30), ch: [kana(), kana(), kana(), kana(), kana()] }; }) : null
+    };
+    m.img = sprite(m.w, m.h, function (g) {
+      g.fillStyle = "#0d1925";
+      g.fillRect(0, 0, m.w, m.h);
+      g.fillStyle = "#152838";
+      g.fillRect(0, 0, 1, m.h);
+      if (m.code) return;
+      for (var y = 5; y < m.h - 2; y += 6) {
+        for (var wx = 3; wx < m.w - 3; wx += 4) {
+          var hs = hash(m.seed * 7 + wx * 3 + y * 11);
+          if (hs < 0.16) {
+            g.fillStyle = hs < 0.1 ? "rgba(255,179,90,0.45)" : "rgba(95,232,255,0.4)";
+            g.fillRect(wx, y, 2, 1);
+          }
+        }
+      }
     });
+    w.mid.push(m);
   }
 
   function newDrop(spread) {
@@ -636,13 +722,23 @@
     }
   }
 
+  var skyGrad = null, hazeGrad = null, gradH = 0;
+  function gradients() {
+    if (gradH === H) return;
+    gradH = H;
+    skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, "#03060a");
+    skyGrad.addColorStop(0.5, "#0a1520");
+    skyGrad.addColorStop(0.8, "#1a1a1e");
+    skyGrad.addColorStop(1, "#3a2414");
+    hazeGrad = ctx.createLinearGradient(0, H - 60, 0, H);
+    hazeGrad.addColorStop(0, "rgba(255,140,60,0)");
+    hazeGrad.addColorStop(1, "rgba(255,140,60,0.12)");
+  }
+
   function drawSky() {
-    var g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "#03060a");
-    g.addColorStop(0.5, "#0a1520");
-    g.addColorStop(0.8, "#1a1a1e");
-    g.addColorStop(1, "#3a2414");
-    ctx.fillStyle = g;
+    gradients();
+    ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H);
 
     // searchlights sweeping the smog
@@ -665,37 +761,12 @@
       var f = w.far[i];
       if (f.x > W || f.x + f.w < 0) continue;
       if (f.kind === "pyramid") {
-        var glow = ctx.createRadialGradient(f.x + f.w / 2, H - 40, 4, f.x + f.w / 2, H - 40, 110);
-        glow.addColorStop(0, "rgba(255,150,60,0.16)");
-        glow.addColorStop(1, "rgba(255,150,60,0)");
-        ctx.fillStyle = glow;
-        ctx.fillRect(f.x - 60, H - 150, f.w + 120, 150);
-        // stepped pyramid with lit floors
-        var steps = 14;
-        for (var s = 0; s < steps; s++) {
-          var tier = s / steps;
-          var tw = Math.round(f.w * (1 - tier) * 0.92 + 18);
-          var ty = Math.round(H - 8 - (s + 1) * (f.h / steps));
-          var tx = Math.round(f.x + (f.w - tw) / 2);
-          rect(tx, ty, tw, Math.ceil(f.h / steps) + 1, "#0d1822");
-          for (var wx = tx + 2; wx < tx + tw - 2; wx += 3) {
-            if (hash(f.seed + s * 31 + wx) < 0.42) rect(wx, ty + 2, 1, 1, hash(wx + s) < 0.8 ? "rgba(255,179,90,0.75)" : "rgba(255,240,200,0.9)");
-          }
-        }
+        ctx.drawImage(f.img, Math.round(f.x) - 60, H - 150);
       } else if (f.kind === "stack") {
         rect(f.x, H - f.h, 2, f.h, "#0b1219");
         rect(f.x - 1, H - f.h, 4, 2, "#0b1219");
       } else {
-        rect(f.x, H - f.h, f.w, f.h, "#0a131c");
-        for (var y = H - f.h + 3; y < H; y += 4) {
-          for (var x = f.x + 2; x < f.x + f.w - 1; x += 3) {
-            var hsh = hash(f.seed * 13 + x * 7 + y * 3);
-            if (hsh < 0.1) {
-              var tw2 = Math.sin(clock * 2 + hsh * 60) > -0.6;
-              if (tw2) rect(x, y, 1, 1, hsh < 0.07 ? "rgba(255,179,90,0.6)" : "rgba(95,232,255,0.5)");
-            }
-          }
-        }
+        ctx.drawImage(f.img, Math.round(f.x), H - f.h);
       }
     }
   }
@@ -753,8 +824,7 @@
       var m = w.mid[i];
       if (m.x > W || m.x + m.w < 0) continue;
       var top = H - m.h;
-      rect(m.x, top, m.w, m.h, "#0d1925");
-      rect(m.x, top, 1, m.h, "#152838");
+      ctx.drawImage(m.img, Math.round(m.x), top);
       if (m.code) {
         for (var c = 0; c < m.code.length; c++) {
           var col = m.code[c];
@@ -769,13 +839,6 @@
           }
         }
         ctx.globalAlpha = 1;
-      } else {
-        for (var y = top + 5; y < H - 2; y += 6) {
-          for (var x = m.x + 3; x < m.x + m.w - 3; x += 4) {
-            var hs = hash(m.seed * 7 + x * 3 + y * 11);
-            if (hs < 0.16) rect(x, y, 2, 1, hs < 0.1 ? "rgba(255,179,90,0.45)" : "rgba(95,232,255,0.4)");
-          }
-        }
       }
       if (m.screen) {
         var sw = Math.min(m.w - 8, 26), sx = Math.round(m.x + (m.w - sw) / 2), sy = top + 10;
@@ -798,10 +861,7 @@
         }
       }
     }
-    var haze = ctx.createLinearGradient(0, H - 60, 0, H);
-    haze.addColorStop(0, "rgba(255,140,60,0)");
-    haze.addColorStop(1, "rgba(255,140,60,0.12)");
-    ctx.fillStyle = haze;
+    ctx.fillStyle = hazeGrad;
     ctx.fillRect(0, H - 60, W, 60);
   }
 
@@ -821,18 +881,7 @@
           rect(dx + 4, top - 2, 1, 2, "#121d26");
         }
       }
-      rect(x, top, b.w, H - top, C.bld);
-      rect(x, top, 1, H - top, C.bldEdge);
-      rect(x, top, b.w, 1, b.rim);
-      ctx.globalAlpha = 0.35;
-      rect(x, top + 1, b.w, 2, b.rim);
-      ctx.globalAlpha = 1;
-      for (var y = top + 8; y < H; y += 9) {
-        for (var wx = x + 4; wx < x + b.w - 4; wx += 7) {
-          var hs = hash(b.seed + wx * 0.37 + y * 1.3);
-          if (hs < 0.22) rect(wx, y, 2, 3, hs < 0.15 ? "rgba(255,179,90,0.32)" : "rgba(95,232,255,0.28)");
-        }
-      }
+      ctx.drawImage(b.img, x, top);
     }
   }
 
