@@ -3,6 +3,7 @@
   "use strict";
 
   var P = window.PROFILE;
+  var BOT_NAME = (P.bot && P.bot.name) || "Joi";
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var T = {
@@ -28,6 +29,10 @@
       projects: "Projekty",
       source: "Kod tej strony",
       unicornAria: "Origami: jednorożec",
+      joiLabel: "Napisz do " + BOT_NAME,
+      joiDetail: "asystentka Karola, odbiera wiadomości całą dobę",
+      hardlineAria: "Zadzwoń do " + BOT_NAME,
+      ringHint: "Dzwoni " + BOT_NAME + ". Odbierz.",
       replicantOn: "Szkoda, że nie przeżyje. Ale kto przeżyje?",
       replicantOff: "Test powtórzony. Werdykt: człowiek.",
       pillsAsk: "Którą wybierasz?",
@@ -71,6 +76,10 @@
       projects: "Projects",
       source: "Source of this page",
       unicornAria: "Origami unicorn",
+      joiLabel: "Write to " + BOT_NAME,
+      joiDetail: "Karol's assistant, takes messages around the clock",
+      hardlineAria: "Call " + BOT_NAME,
+      ringHint: BOT_NAME + " is calling. Answer.",
       replicantOn: "It's too bad she won't live. But then again, who does?",
       replicantOff: "Test repeated. Verdict: human.",
       pillsAsk: "Which one do you take?",
@@ -305,22 +314,37 @@
   var sky = window.Sky ? Sky.mount(document.getElementById("sky")) : null;
 
   // While the game is open the card underneath sleeps and is hidden from assistive tech.
-  document.addEventListener("wiz:game", function (e) {
+  document.addEventListener("wiz:overlay", function (e) {
     var open = e.detail.open;
     document.querySelector("main").inert = open;
     pills.inert = open;
+    document.getElementById("hardline").inert = open;
     if (sky) { if (open) sky.pause(); else sky.resume(); }
     if (vk) { if (open) vk.pause(); else vk.resume(); }
   });
   if (window.Game) Game.init({ text: function (k) { return t(k); } });
+  if (window.Joi) Joi.init();
+
+  // The phone rings once per session, a little after the eye opens.
+  var hardline = document.getElementById("hardline");
+  var ringHint = document.getElementById("ring-hint");
+  function ringPhone() {
+    if (session.get("wiz.rang")) return;
+    session.set("wiz.rang", "1");
+    setTimeout(function () {
+      hardline.classList.add("ringing");
+      ringHint.hidden = false;
+      setTimeout(function () { hardline.classList.remove("ringing"); ringHint.hidden = true; }, 6000);
+    }, 4000);
+  }
 
   applyLang();
 
   if (window.VK) {
     vk = VK.create(document.getElementById("vk"), {
       text: t,
-      onOpen: function () { decodeName(); showAsk(); }
+      onOpen: function () { decodeName(); showAsk(); ringPhone(); }
     });
-    if (vk.introDone()) showAsk();
+    if (vk.introDone()) { showAsk(); ringPhone(); }
   }
 })();

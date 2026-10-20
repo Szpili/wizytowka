@@ -18,6 +18,13 @@ window.PROFILE = {
   repoUrl: "https://github.com/Szpili/wizytowka",
   cv: { pl: "cv/karol-ai-cv-pl.pdf", en: "cv/karol-ai-cv-en.pdf" },
 
+  // Asystentka na wizytówce. endpoint = adres serwera z server/joi-relay.mjs (https, bez ukośnika na końcu).
+  // Pusty endpoint = tryb automatu z wiadomością przez e-mail.
+  bot: {
+    name: "Joi",
+    endpoint: ""
+  },
+
   contact: {
     email: "kontakt@weryta.pl",
     phone: "+48 606 493 220",

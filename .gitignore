@@ -1,2 +1,4 @@
 tools/node_modules/
 .DS_Store
+server/transcripts/
+server/joi.env

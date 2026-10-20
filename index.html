@@ -48,6 +48,10 @@
       <span class="txt"><span class="lbl" data-i18n="cvLabel">Pobierz AI CV</span><span class="det" data-i18n="cvDetail">PDF, wersja polska</span></span>
     </a>
     <a class="alt-cv" id="cv-alt" href="cv/karol-ai-cv-en.pdf" download="Karol-AI-CV-EN.pdf" data-i18n="cvAlt" lang="en">Also in English (PDF)</a>
+    <button class="row joi-row" id="joi-row" type="button" data-joi="chat" aria-haspopup="dialog">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"><path d="M5 6l6 6-6 6M13 18h7"/></svg></span>
+      <span class="txt"><span class="lbl" data-i18n="joiLabel">Napisz do Joi</span><span class="det" data-i18n="joiDetail">asystentka Karola, odbiera wiadomości całą dobę</span></span>
+    </button>
     <!-- Pozostałe wiersze kontaktu dopisuje card.js z assets/js/profile.js -->
   </nav>
 
@@ -78,6 +82,24 @@
   </footer>
 </main>
 
+<button class="hardline" id="hardline" type="button" data-joi="call" aria-haspopup="dialog" aria-label="Zadzwoń do Joi" data-i18n-aria="hardlineAria" data-i18n-title="hardlineAria">
+  <span class="ring-hint" id="ring-hint" hidden data-i18n="ringHint">Dzwoni Joi. Odbierz.</span>
+  <svg viewBox="0 0 28 60" aria-hidden="true">
+    <rect x="21" y="0" width="3" height="9" rx="1" fill="#2a2f33"/>
+    <rect x="2" y="6" width="24" height="52" rx="9" fill="#15191c" stroke="#3a4248" stroke-width="1"/>
+    <rect x="9" y="10" width="10" height="2" rx="1" fill="#0b0e10"/>
+    <rect x="6" y="15" width="16" height="12" rx="1.5" fill="#86ad63"/>
+    <rect x="8" y="18" width="9" height="2" fill="#17331a"/>
+    <rect x="8" y="22" width="6" height="2" fill="#17331a"/>
+    <rect x="6" y="31" width="16" height="24" rx="7" fill="#1e2428"/>
+    <g fill="#3b454c">
+      <rect x="8" y="34" width="3" height="2" rx="0.5"/><rect x="12.5" y="34" width="3" height="2" rx="0.5"/><rect x="17" y="34" width="3" height="2" rx="0.5"/>
+      <rect x="8" y="38" width="3" height="2" rx="0.5"/><rect x="12.5" y="38" width="3" height="2" rx="0.5"/><rect x="17" y="38" width="3" height="2" rx="0.5"/>
+      <rect x="8" y="42" width="3" height="2" rx="0.5"/><rect x="12.5" y="42" width="3" height="2" rx="0.5"/><rect x="17" y="42" width="3" height="2" rx="0.5"/>
+    </g>
+  </svg>
+</button>
+
 <div class="pills" id="pills">
   <p class="pills-ask" id="pills-ask" data-i18n="pillsAsk" hidden>Którą wybierasz?</p>
   <button class="pill blue" id="pill-blue" type="button" aria-label="Niebieska pigułka: schowaj pigułki" data-i18n-aria="blueAria" data-i18n-title="blueAria"></button>
@@ -85,6 +107,40 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="joi" id="joi" role="dialog" aria-modal="true" aria-labelledby="joi-title" hidden>
+  <div class="joi-top">
+    <button type="button" class="gbtn" id="joi-close">Zamknij</button>
+    <span class="joi-line" id="joi-line" data-line="mail">linia: e-mail</span>
+    <button type="button" class="gbtn" id="joi-call" aria-pressed="false">Zadzwoń</button>
+  </div>
+  <div class="joi-body">
+    <section class="term" aria-label="Terminal">
+      <h2 id="joi-title" class="sr-only">Joi</h2>
+      <div class="term-log" id="term-log" aria-live="polite"></div>
+      <form class="term-in" id="term-form" autocomplete="off">
+        <span class="t-prompt" aria-hidden="true">&gt;</span>
+        <input id="term-input" type="text" autocomplete="off" autocapitalize="sentences" spellcheck="false" maxlength="1000" placeholder="Napisz tutaj" aria-label="ty">
+        <button type="submit" class="t-send" aria-label="Wyślij">&#9166;</button>
+      </form>
+    </section>
+    <aside class="phone" id="phone" aria-label="Rozmowa z Joi" hidden>
+      <div class="nokia" id="nokia" data-state="closed">
+        <div class="antenna"></div>
+        <div class="ear"></div>
+        <div class="lcd">
+          <div class="lcd-top" id="lcd-top">JOI</div>
+          <div class="lcd-main" id="lcd-main"></div>
+          <div class="lcd-soft" id="lcd-soft"></div>
+        </div>
+        <button type="button" class="navkey" id="lcd-answer">Odbierz</button>
+        <div class="keys" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>*</span><span>0</span><span>#</span></div>
+        <div class="slider"></div>
+      </div>
+    </aside>
+  </div>
+  <p class="joi-note" id="joi-note">Rozmowa jest zapisywana i trafia do Karola.</p>
+</div>
 
 <div class="game" id="game" role="dialog" aria-modal="true" aria-labelledby="game-title" hidden>
   <div class="game-top">
@@ -116,6 +172,7 @@
 <script src="assets/js/vk.js"></script>
 <script src="assets/js/audio.js"></script>
 <script src="assets/js/game.js"></script>
+<script src="assets/js/joi.js"></script>
 <script src="assets/js/card.js"></script>
 </body>
 </html>

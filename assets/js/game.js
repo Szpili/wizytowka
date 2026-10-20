@@ -1241,7 +1241,7 @@
   function release() { input.down = false; }
 
   function announce(isOpen) {
-    document.dispatchEvent(new CustomEvent("wiz:game", { detail: { open: isOpen } }));
+    document.dispatchEvent(new CustomEvent("wiz:overlay", { detail: { open: isOpen, id: "game" } }));
   }
 
   function open(from) {
