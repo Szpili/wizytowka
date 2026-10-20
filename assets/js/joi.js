@@ -484,6 +484,15 @@
     history.push({ role: "user", text: text });
     run(function (d) {
       var out = stream();
+      var spoken = 0, said = "";
+      function sentences(full, flush) {
+        if (!call) return;
+        var re = /[.!?…]+["”)]?(\s+|$)/g, m, last = spoken;
+        re.lastIndex = spoken;
+        while ((m = re.exec(full))) { last = m.index + m[0].length; if (m[1] === "" && !flush) { last = spoken; break; } }
+        if (flush) last = full.length;
+        if (last > spoken) { enqueueSpeech(full.slice(spoken, last)); spoken = last; }
+      }
       lcd(t("lcdThinking"));
       var ctrl = "AbortController" in window ? new AbortController() : null;
       var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 90000) : 0;
@@ -504,7 +513,7 @@
               buf = buf.slice(i + 1);
               if (!l) continue;
               var j = JSON.parse(l);
-              if (j.delta) out.push(j.delta);
+              if (j.delta) { out.push(j.delta); said += j.delta; sentences(said, false); }
               if (j.error) throw new Error(j.error);
             }
             if (!res.done) return pump();
@@ -516,7 +525,8 @@
         out.end(function (full) {
           history.push({ role: "assistant", text: full });
           if (history.length === 6) sayQ(t("leadHint"));
-          speak(full);
+          sentences(full, true);
+          afterSpeech(listen);
           d();
         });
       }).catch(function () {
@@ -637,6 +647,9 @@
     clearTimeout(c.wait);
     if (c.rec) { try { c.rec.abort(); } catch (e) {} }
     if (c.audio) { try { c.audio.pause(); } catch (e) {} }
+    voiceQ = [];
+    voiceBusy = false;
+    voiceDone = null;
     if (window.speechSynthesis) speechSynthesis.cancel();
     nokia.dataset.state = "closed";
     lcd(t("lcdEnded"));
@@ -733,25 +746,56 @@
     });
   }
 
-  // Joi only speaks aloud while the phone is off the hook.
-  function speak(text, done) {
-    if (!call) { if (done) done(); return; }
-    if (call.rec) { try { call.rec.abort(); } catch (e) {} call.rec = null; }
-    call.speaking = true;
-    lcd(t("lcdSpeaking"));
-    var finished = false;
-    function fin() {
-      if (finished) return;
-      finished = true;
-      if (!call) { if (done) done(); return; }
-      call.speaking = false;
-      if (done) done(); else listen();
-    }
+  // Joi only speaks aloud while the phone is off the hook. Sentences queue up, so a streamed
+  // reply is heard from its first sentence while the model is still writing the rest.
+  var voiceQ = [], voiceBusy = false, voiceDone = null;
+
+  function speakOne(text, fin) {
     if (serverTts && ENDPOINT) {
       speakServer(text).then(fin, function () { browserSpeak(text, fin); });
       return;
     }
     browserSpeak(text, fin);
+  }
+
+  function pumpVoice() {
+    if (voiceBusy || !call) return;
+    var s = voiceQ.shift();
+    if (s === undefined) {
+      call.speaking = false;
+      if (voiceDone) { var f = voiceDone; voiceDone = null; f(); }
+      return;
+    }
+    voiceBusy = true;
+    call.speaking = true;
+    if (call.rec) { try { call.rec.abort(); } catch (e) {} call.rec = null; }
+    lcd(t("lcdSpeaking"));
+    var finished = false;
+    speakOne(s, function () {
+      if (finished) return;
+      finished = true;
+      voiceBusy = false;
+      pumpVoice();
+    });
+  }
+
+  function enqueueSpeech(text) {
+    if (!call || !text.trim()) return;
+    voiceQ.push(text.trim());
+    pumpVoice();
+  }
+
+  // Runs cb once everything queued so far has been spoken (at once when the phone is on the hook).
+  function afterSpeech(cb) {
+    if (!call) { if (cb) cb(); return; }
+    voiceDone = cb || null;
+    pumpVoice();
+  }
+
+  function speak(text, done) {
+    if (!call) { if (done) done(); return; }
+    enqueueSpeech(text);
+    afterSpeech(done || listen);
   }
 
   function browserSpeak(text, fin) {

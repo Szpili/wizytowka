@@ -36,7 +36,8 @@ const SALT = env.IP_SALT || crypto.randomBytes(8).toString("hex");
 const TTS_URL = (env.TTS_URL || "").replace(/\/+$/, "");
 const TTS_CMD = env.TTS_CMD || "";
 const TTS_VOICE = env.TTS_VOICE || "";
-const TTS_TYPE = env.TTS_TYPE || (TTS_CMD ? "audio/wav" : "audio/mpeg");
+const TTS_API = env.TTS_API === "piper" ? "piper" : "openai"; // piper = python3 -m piper.http_server
+const TTS_TYPE = env.TTS_TYPE || (TTS_CMD || TTS_API === "piper" ? "audio/wav" : "audio/mpeg");
 
 const LIMITS = { chatPer10min: 30, leadPerHour: 5, speakPer10min: 60, speech: 600, message: 1000, history: 20, body: 32 * 1024, predict: 220, timeoutMs: 90000 };
 
@@ -257,7 +258,7 @@ async function complete(messages, signal, onDelta) {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
     signal,
-    body: JSON.stringify({ model: MODEL, stream: true, messages, options: { num_predict: LIMITS.predict, temperature: 0.6, repeat_penalty: 1.1 } })
+    body: JSON.stringify({ model: MODEL, stream: true, keep_alive: "2h", messages, options: { num_predict: LIMITS.predict, temperature: 0.6, repeat_penalty: 1.1 } })
   });
   if (!r.ok || !r.body) throw new Error("ollama " + r.status);
   for await (const chunk of r.body) {
@@ -347,11 +348,13 @@ async function speak(req, res) {
   if (!text) return send(res, 400, { error: "empty" });
   let audio;
   if (TTS_URL) {
-    const r = await fetch(`${TTS_URL}/v1/audio/speech`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ model: "tts-1", input: text, voice: TTS_VOICE || "alloy", response_format: "mp3" })
-    });
+    const r = TTS_API === "piper"
+      ? await fetch(`${TTS_URL}/`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+      : await fetch(`${TTS_URL}/v1/audio/speech`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ model: "tts-1", input: text, voice: TTS_VOICE || "alloy", response_format: "mp3" })
+        });
     if (!r.ok) throw new Error("tts " + r.status);
     audio = Buffer.from(await r.arrayBuffer());
   } else {
