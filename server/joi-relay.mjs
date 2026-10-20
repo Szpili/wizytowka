@@ -1,5 +1,6 @@
 // Joi relay: the line between the card and a local model.
 // Node 18+, no dependencies. Run: node server/joi-relay.mjs (see server/joi.env.example)
+// Talks to Ollama (/api/chat) or any OpenAI-compatible server (/v1/chat/completions): vLLM, llama.cpp, LM Studio.
 //
 //   GET  /health -> { ok, live, model }      live = the model answers
 //   POST /chat   -> NDJSON stream of { delta } lines, then { done: true }
@@ -12,22 +13,32 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import vm from "node:vm";
+import os from "node:os";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const env = process.env;
 const PORT = Number(env.PORT) || 8787;
 const HOST = env.HOST || "127.0.0.1";
-const OLLAMA = (env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
-const MODEL = env.MODEL || "qwen2.5:7b";
+const LLM = (env.LLM_URL || env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
+const LLM_KEY = env.LLM_KEY || "";
+let MODEL = env.MODEL || "qwen2.5:7b";
+let API = ["ollama", "openai"].includes(env.LLM_API) ? env.LLM_API : "auto"; // settled by detect()
 const ORIGINS = (env.ALLOWED_ORIGIN || "https://szpili.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map((s) => s.trim());
 const DIR = env.TRANSCRIPT_DIR || path.join(here, "transcripts");
 const TRUST_PROXY = env.TRUST_PROXY === "1";
 const TG_TOKEN = env.TELEGRAM_BOT_TOKEN || "";
 const TG_CHAT = env.TELEGRAM_CHAT_ID || "";
 const SALT = env.IP_SALT || crypto.randomBytes(8).toString("hex");
+// Optional voice: TTS_URL = OpenAI-style POST /v1/audio/speech (Kokoro-FastAPI, openedai-speech, ...)
+// or TTS_CMD = a shell command that reads text on stdin and writes audio to {out} (e.g. piper).
+const TTS_URL = (env.TTS_URL || "").replace(/\/+$/, "");
+const TTS_CMD = env.TTS_CMD || "";
+const TTS_VOICE = env.TTS_VOICE || "";
+const TTS_TYPE = env.TTS_TYPE || (TTS_CMD ? "audio/wav" : "audio/mpeg");
 
-const LIMITS = { chatPer10min: 30, leadPerHour: 5, message: 1000, history: 20, body: 32 * 1024, predict: 220, timeoutMs: 90000 };
+const LIMITS = { chatPer10min: 30, leadPerHour: 5, speakPer10min: 60, speech: 600, message: 1000, history: 20, body: 32 * 1024, predict: 220, timeoutMs: 90000 };
 
 fs.mkdirSync(DIR, { recursive: true });
 
@@ -177,18 +188,90 @@ function appendTurn(file, role, text) {
 
 /* ---------- model ---------- */
 
-async function modelLive() {
+const authHeaders = () => (LLM_KEY ? { authorization: `Bearer ${LLM_KEY}` } : {});
+
+async function getJson(url) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 2500);
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 2500);
-    const r = await fetch(`${OLLAMA}/api/tags`, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) return false;
-    const j = await r.json();
-    const names = (j.models || []).map((m) => m.name);
-    return names.includes(MODEL) || names.includes(MODEL + ":latest") || names.length > 0;
+    const r = await fetch(url, { signal: ctrl.signal, headers: authHeaders() });
+    return r.ok ? await r.json() : null;
   } catch {
-    return false;
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Which API the model server speaks, and whether MODEL is there. A lone model is taken as is.
+async function detect() {
+  let names = null, api = API;
+  if (api !== "openai") {
+    const j = await getJson(`${LLM}/api/tags`);
+    if (j && Array.isArray(j.models)) { names = j.models.map((m) => m.name); api = "ollama"; }
+  }
+  if (names === null && api !== "ollama") {
+    const j = await getJson(`${LLM}/v1/models`);
+    if (j && Array.isArray(j.data)) { names = j.data.map((m) => m.id); api = "openai"; }
+  }
+  if (names === null) return { live: false, api: API === "auto" ? "?" : API, names: [] };
+  if (API === "auto") API = api;
+  const has = names.includes(MODEL) || names.includes(MODEL + ":latest");
+  if (!has && names.length === 1) { console.log(new Date().toISOString(), `model ${MODEL} not found, using the only one: ${names[0]}`); MODEL = names[0]; }
+  return { live: has || names.length === 1, api, names };
+}
+
+async function modelLive() {
+  return (await detect()).live;
+}
+
+// Stream one reply, whichever API is behind LLM. Calls onDelta per text chunk.
+async function complete(messages, signal, onDelta) {
+  if (API === "auto") await detect();
+  const dec = new TextDecoder();
+  let buf = "";
+  if (API === "openai") {
+    const r = await fetch(`${LLM}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...authHeaders() },
+      signal,
+      body: JSON.stringify({ model: MODEL, stream: true, messages, max_tokens: LIMITS.predict, temperature: 0.6 })
+    });
+    if (!r.ok || !r.body) throw new Error("llm " + r.status);
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") return;
+        const delta = JSON.parse(data).choices?.[0]?.delta?.content || "";
+        if (delta) onDelta(delta);
+      }
+    }
+    return;
+  }
+  const r = await fetch(`${LLM}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    signal,
+    body: JSON.stringify({ model: MODEL, stream: true, messages, options: { num_predict: LIMITS.predict, temperature: 0.6, repeat_penalty: 1.1 } })
+  });
+  if (!r.ok || !r.body) throw new Error("ollama " + r.status);
+  for await (const chunk of r.body) {
+    buf += dec.decode(chunk, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line) continue;
+      const j = JSON.parse(line);
+      const delta = j.message?.content || "";
+      if (delta) onDelta(delta);
+      if (j.done) return;
+    }
   }
 }
 
@@ -213,33 +296,10 @@ async function chat(req, res) {
   req.on("close", () => ctrl.abort());
   let reply = "";
   try {
-    const r = await fetch(`${OLLAMA}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      signal: ctrl.signal,
-      body: JSON.stringify({
-        model: MODEL,
-        stream: true,
-        messages: [{ role: "system", content: persona(lang) }, ...msgs],
-        options: { num_predict: LIMITS.predict, temperature: 0.6, repeat_penalty: 1.1 }
-      })
+    await complete([{ role: "system", content: persona(lang) }, ...msgs], ctrl.signal, (delta) => {
+      reply += delta;
+      res.write(JSON.stringify({ delta }) + "\n");
     });
-    if (!r.ok || !r.body) throw new Error("ollama " + r.status);
-    const dec = new TextDecoder();
-    let buf = "";
-    for await (const chunk of r.body) {
-      buf += dec.decode(chunk, { stream: true });
-      let i;
-      while ((i = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 1);
-        if (!line) continue;
-        const j = JSON.parse(line);
-        const delta = j.message?.content || "";
-        if (delta) { reply += delta; res.write(JSON.stringify({ delta }) + "\n"); }
-        if (j.done) break;
-      }
-    }
     res.end(JSON.stringify({ done: true }) + "\n");
   } catch (e) {
     if (!res.writableEnded) res.end(JSON.stringify({ error: "model" }) + "\n");
@@ -276,6 +336,37 @@ async function lead(req, res) {
   send(res, 204);
 }
 
+/* ---------- voice ---------- */
+
+async function speak(req, res) {
+  if (!TTS_URL && !TTS_CMD) return send(res, 404, { error: "no voice" });
+  const ip = clientIp(req);
+  if (!allow(ip, "speak", LIMITS.speakPer10min, 600000)) return send(res, 429, { error: "rate" });
+  const body = await readJson(req);
+  const text = clean(body.text, LIMITS.speech);
+  if (!text) return send(res, 400, { error: "empty" });
+  let audio;
+  if (TTS_URL) {
+    const r = await fetch(`${TTS_URL}/v1/audio/speech`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ model: "tts-1", input: text, voice: TTS_VOICE || "alloy", response_format: "mp3" })
+    });
+    if (!r.ok) throw new Error("tts " + r.status);
+    audio = Buffer.from(await r.arrayBuffer());
+  } else {
+    const out = path.join(os.tmpdir(), `joi-${crypto.randomUUID()}.wav`);
+    await new Promise((resolve, reject) => {
+      const child = execFile("/bin/sh", ["-c", TTS_CMD.replace("{out}", out)], { timeout: 30000 }, (err) => (err ? reject(err) : resolve()));
+      child.stdin.end(text);
+    });
+    audio = fs.readFileSync(out);
+    fs.unlink(out, () => {});
+  }
+  res.writeHead(200, { "content-type": TTS_TYPE, "content-length": audio.length, "cache-control": "no-store" });
+  res.end(audio);
+}
+
 async function notify(text) {
   if (!TG_TOKEN || !TG_CHAT) return;
   await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -290,11 +381,13 @@ async function notify(text) {
 const server = http.createServer(async (req, res) => {
   cors(req, res);
   const url = new URL(req.url, "http://local");
+  const route = (url.pathname.match(/\/(health|chat|lead|speak)\/?$/) || [])[1] || "";
   try {
     if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
-    if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, live: await modelLive(), model: MODEL, name: NAME });
-    if (req.method === "POST" && url.pathname === "/chat") return await chat(req, res);
-    if (req.method === "POST" && url.pathname === "/lead") return await lead(req, res);
+    if (req.method === "GET" && route === "health") { const d = await detect(); return send(res, 200, { ok: true, live: d.live, model: MODEL, api: d.api, name: NAME, tts: !!(TTS_URL || TTS_CMD) }); }
+    if (req.method === "POST" && route === "chat") return await chat(req, res);
+    if (req.method === "POST" && route === "lead") return await lead(req, res);
+    if (req.method === "POST" && route === "speak") return await speak(req, res);
     send(res, 404, { error: "not found" });
   } catch (e) {
     console.error(new Date().toISOString(), req.method, url.pathname, e.message);
@@ -303,6 +396,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`${NAME} relay on http://${HOST}:${PORT}  model=${MODEL} at ${OLLAMA}  transcripts=${DIR}`);
+server.listen(PORT, HOST, async () => {
+  console.log(`${NAME} relay on http://${HOST}:${PORT}  transcripts=${DIR}`);
+  const d = await detect();
+  if (!d.live) console.log(`model server at ${LLM}: ${d.names.length ? "models " + d.names.join(", ") + " but MODEL=" + MODEL + " is not among them" : "not reachable"} -> Joi runs as the script until it answers`);
+  else console.log(`model ${MODEL} via ${d.api} API at ${LLM}`);
 });

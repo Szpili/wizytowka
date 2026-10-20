@@ -61,6 +61,7 @@
       lcdThinking: "myślę…",
       lcdEnded: "koniec",
       lcdNoMic: "brak mikrofonu",
+      lcdMic: "mikrofon?",
       noMic: "Ta przeglądarka nie rozpoznaje mowy. Mogę mówić, ale ty pisz w terminalu.",
       micDenied: "Brak dostępu do mikrofonu. Pisz w terminalu.",
       callStart: "Połączenie z " + NAME + ". Mów po sygnale, słucham.",
@@ -117,6 +118,7 @@
       lcdThinking: "thinking…",
       lcdEnded: "ended",
       lcdNoMic: "no microphone",
+      lcdMic: "microphone?",
       noMic: "This browser has no speech recognition. I can speak, but please type in the terminal.",
       micDenied: "No microphone access. Please type in the terminal.",
       callStart: "Connected to " + NAME + ". Speak after the tone, I am listening.",
@@ -159,6 +161,8 @@
   var options = [];         // clickable options currently offered
   var probe = null;
   var pending = "";         // typed before the greeting finished
+  var serverTts = false;    // the relay can speak with its own voice
+  var micOK = null;         // null = not asked yet
 
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -310,6 +314,7 @@
       .then(function (j) {
         clearTimeout(timer);
         var l = j && j.ok ? (j.live ? "live" : "auto") : "mail";
+        serverTts = !!(j && j.tts);
         setLine(l);
         return l;
       })
@@ -534,7 +539,7 @@
     var low = text.toLowerCase();
     if (t("cmdExit").indexOf(low) >= 0) { echo(text); close(); return; }
     if (t("cmdHelp").indexOf(low) >= 0) { echo(text); sayQ(t("help")); return; }
-    if (t("cmdCall").indexOf(low) >= 0) { echo(text); startCall(); return; }
+    if (t("cmdCall").indexOf(low) >= 0) { echo(text); startCall("out"); return; }
     if (t("cmdContact").indexOf(low) >= 0) {
       echo(text);
       clearOptions();
@@ -571,29 +576,51 @@
     if (lcdMain) lcdMain.textContent = text;
   }
 
-  function startCall() {
+  // "in": Joi rings and waits for the visitor to answer. "out": the visitor dials and Joi picks up.
+  function startCall(mode) {
     if (call) return;
     phoneEl.hidden = false;
     nokia.dataset.state = "ringing";
     lcdTop.textContent = NAME.toUpperCase();
-    lcd(t("lcdCalling"));
+    lcd(mode === "in" ? t("lcdRinging") : t("lcdCalling"));
     lcdSoft.textContent = "";
+    btnAnswer.textContent = t("lcdAnswer");
     btnCall.textContent = t("hangup");
     btnCall.setAttribute("aria-pressed", "true");
-    call = { t0: 0, timer: 0, rec: null, speaking: false, listening: false };
-    ring(2);
-    setTimeout(function () {
-      if (!call) return;
-      nokia.dataset.state = "open";
-      call.t0 = Date.now();
-      call.timer = setInterval(clock, 1000);
-      lcdTop.textContent = "00:00";
-      run(function (d) {
-        say(t("callStart"), function () {
-          speak(t("callStart"), function () { listen(); d(); });
-        });
+    call = { t0: 0, timer: 0, wait: 0, rec: null, audio: null, speaking: false, listening: false };
+    primeMic();
+    ring(mode === "in" ? 4 : 2);
+    call.wait = setTimeout(answer, reduce ? 300 : mode === "in" ? 7000 : 2200);
+  }
+
+  function answer() {
+    if (!call || nokia.dataset.state === "open") return;
+    clearTimeout(call.wait);
+    nokia.dataset.state = "open";
+    call.t0 = Date.now();
+    call.timer = setInterval(clock, 1000);
+    lcdTop.textContent = "00:00";
+    btnAnswer.textContent = t("hangup");
+    if (typing) typing.skip();
+    run(function (d) {
+      say(t("callStart"), function () {
+        speak(t("callStart"), function () { listen(); d(); });
       });
-    }, reduce ? 300 : 2200);
+    });
+  }
+
+  // The permission prompt only shows reliably inside the click, so ask now and release the stream.
+  function primeMic() {
+    if (micOK !== null || !SR) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { micOK = true; return; }
+    lcd(t("lcdMic"));
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+      s.getTracks().forEach(function (tr) { tr.stop(); });
+      micOK = true;
+    }).catch(function () {
+      micOK = false;
+      if (call) { lcd(t("lcdNoMic")); sayQ(t("micDenied")); }
+    });
   }
 
   function clock() {
@@ -607,7 +634,9 @@
     var c = call;
     call = null;
     clearInterval(c.timer);
+    clearTimeout(c.wait);
     if (c.rec) { try { c.rec.abort(); } catch (e) {} }
+    if (c.audio) { try { c.audio.pause(); } catch (e) {} }
     if (window.speechSynthesis) speechSynthesis.cancel();
     nokia.dataset.state = "closed";
     lcd(t("lcdEnded"));
@@ -626,6 +655,7 @@
       focusInput();
       return;
     }
+    if (micOK === false) { lcd(t("lcdNoMic")); focusInput(); return; }
     var rec = new SR();
     rec.lang = lang === "pl" ? "pl-PL" : "en-US";
     rec.interimResults = true;
@@ -664,32 +694,51 @@
     try { rec.start(); } catch (e) { lcd(t("lcdNoMic")); }
   }
 
+  // Rachael's register: an even, unhurried, slightly low delivery. Female system voices go first.
+  var PREFER = {
+    pl: /zofia|paulina|agnieszka|ewa|maja|zosia|google polski|polish female/i,
+    en: /samantha|karen|moira|fiona|aria|jenny|libby|sonia|google uk english female|google us english|female/i
+  };
   function pickVoice() {
     if (!window.speechSynthesis) return null;
     var want = lang === "pl" ? "pl" : "en";
     var voices = speechSynthesis.getVoices();
-    var hit = null;
+    var best = null, score = -1;
     for (var i = 0; i < voices.length; i++) {
       var v = voices[i];
-      if (v.lang && v.lang.toLowerCase().indexOf(want) === 0) {
-        if (!hit || /google|natural|premium|zofia|paulina/i.test(v.name)) hit = v;
-      }
+      if (!v.lang || v.lang.toLowerCase().indexOf(want) !== 0) continue;
+      var s = (PREFER[want].test(v.name) ? 4 : 0) + (/natural|neural|premium|enhanced|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
+      if (s > score) { score = s; best = v; }
     }
-    return hit;
+    return best;
+  }
+
+  // The relay can carry a voice of its own (a local TTS); the browser voice is the fallback.
+  function speakServer(text) {
+    return fetch(ENDPOINT + "/speak", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: text, lang: lang })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("tts " + r.status);
+      return r.blob();
+    }).then(function (blob) {
+      return new Promise(function (resolve, reject) {
+        var a = new Audio(URL.createObjectURL(blob));
+        call.audio = a;
+        a.onended = function () { URL.revokeObjectURL(a.src); resolve(); };
+        a.onerror = function () { reject(new Error("audio")); };
+        a.play().catch(reject);
+      });
+    });
   }
 
   // Joi only speaks aloud while the phone is off the hook.
   function speak(text, done) {
-    if (!call || !window.speechSynthesis) { if (done) done(); return; }
+    if (!call) { if (done) done(); return; }
     if (call.rec) { try { call.rec.abort(); } catch (e) {} call.rec = null; }
     call.speaking = true;
     lcd(t("lcdSpeaking"));
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = lang === "pl" ? "pl-PL" : "en-US";
-    var v = pickVoice();
-    if (v) u.voice = v;
-    u.rate = 1.02;
-    u.pitch = 1.05;
     var finished = false;
     function fin() {
       if (finished) return;
@@ -698,6 +747,21 @@
       call.speaking = false;
       if (done) done(); else listen();
     }
+    if (serverTts && ENDPOINT) {
+      speakServer(text).then(fin, function () { browserSpeak(text, fin); });
+      return;
+    }
+    browserSpeak(text, fin);
+  }
+
+  function browserSpeak(text, fin) {
+    if (!window.speechSynthesis) { fin(); return; }
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = lang === "pl" ? "pl-PL" : "en-US";
+    var v = pickVoice();
+    if (v) u.voice = v;
+    u.rate = 0.96;
+    u.pitch = 0.9;
     u.onend = fin;
     u.onerror = fin;
     speechSynthesis.cancel();
@@ -745,7 +809,7 @@
     document.body.classList.add("locked");
     announce(true);
     start();
-    if (mode === "call") startCall();
+    if (mode === "call") startCall("in");
     setTimeout(function () { (window.innerWidth > 700 ? input : btnClose).focus({ preventScroll: true }); }, 50);
   }
 
@@ -768,7 +832,7 @@
     input.placeholder = t("placeholder");
     input.setAttribute("aria-label", t("you"));
     phoneEl.setAttribute("aria-label", t("callTitle"));
-    btnAnswer.textContent = t("lcdAnswer");
+    btnAnswer.textContent = call && nokia.dataset.state === "open" ? t("hangup") : t("lcdAnswer");
     setLine(line);
   }
 
@@ -806,14 +870,21 @@
     });
     log.addEventListener("click", function () { if (typing) typing.skip(); });
     btnClose.addEventListener("click", close);
-    btnCall.addEventListener("click", function () { if (call) endCall(); else startCall(); });
-    btnAnswer.addEventListener("click", function () { if (call) endCall(); else startCall(); });
+    btnCall.addEventListener("click", function () { if (call) endCall(); else startCall("out"); });
+    btnAnswer.addEventListener("click", function () {
+      if (!call) startCall("out");
+      else if (nokia.dataset.state === "ringing") answer();
+      else endCall();
+    });
     document.addEventListener("keydown", function (e) {
       if (root.hidden) return;
       if (e.key === "Escape") { e.preventDefault(); close(); return; }
       if (e.key === "Tab") trapFocus(e);
     });
-    if (window.speechSynthesis && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", function () {});
+    if (window.speechSynthesis) {
+      speechSynthesis.getVoices();
+      if (speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", function () { speechSynthesis.getVoices(); });
+    }
 
     Array.prototype.forEach.call(document.querySelectorAll("[data-joi]"), function (b) {
       b.addEventListener("click", function () { open(b, b.getAttribute("data-joi")); });

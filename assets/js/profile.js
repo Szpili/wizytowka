@@ -22,7 +22,7 @@ window.PROFILE = {
   // Pusty endpoint = tryb automatu z wiadomością przez e-mail.
   bot: {
     name: "Joi",
-    endpoint: ""
+    endpoint: "https://pop-os.tailaf1556.ts.net"
   },
 
   contact: {
