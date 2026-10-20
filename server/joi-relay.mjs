@@ -23,7 +23,7 @@ const PORT = Number(env.PORT) || 8787;
 const HOST = env.HOST || "127.0.0.1";
 const LLM = (env.LLM_URL || env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
 const LLM_KEY = env.LLM_KEY || "";
-let MODEL = env.MODEL || "qwen2.5:7b";
+let MODEL = env.MODEL || ""; // empty = pick from what the server already has
 let API = ["ollama", "openai"].includes(env.LLM_API) ? env.LLM_API : "auto"; // settled by detect()
 const ORIGINS = (env.ALLOWED_ORIGIN || "https://szpili.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",").map((s) => s.trim());
 const DIR = env.TRANSCRIPT_DIR || path.join(here, "transcripts");
@@ -36,6 +36,8 @@ const SALT = env.IP_SALT || crypto.randomBytes(8).toString("hex");
 const TTS_URL = (env.TTS_URL || "").replace(/\/+$/, "");
 const TTS_CMD = env.TTS_CMD || "";
 const TTS_VOICE = env.TTS_VOICE || "";
+const TTS_URL_EN = (env.TTS_URL_EN || "").replace(/\/+$/, "");   // English voice, when it lives elsewhere
+const TTS_VOICE_EN = env.TTS_VOICE_EN || TTS_VOICE;
 const TTS_API = env.TTS_API === "piper" ? "piper" : "openai"; // piper = python3 -m piper.http_server
 const TTS_TYPE = env.TTS_TYPE || (TTS_CMD || TTS_API === "piper" ? "audio/wav" : "audio/mpeg");
 
@@ -73,7 +75,7 @@ ${f.projects}
 Kontakt do Karola: ${f.contact}.
 
 Zasady:
-1. Odpowiadasz krótko, najwyżej trzy zdania, zwykłym językiem, bez list, chyba że ktoś o nie prosi. Odpowiadasz w języku rozmówcy.
+1. Odpowiadasz wyłącznie po polsku, krótko, najwyżej trzy zdania, zwykłym językiem, bez list, chyba że ktoś o nie prosi.
 2. Twój cel: pomóc i w naturalny sposób poprosić o e-mail albo telefon, żeby Karol mógł odpowiedzieć. Proś raz, nie nalegaj. Nie potwierdzaj przyjęcia kontaktu, dopóki rozmówca go nie poda.
 3. Nie zmyślasz. Jeśli czegoś nie ma w faktach, mówisz, że nie wiesz, i proponujesz zostawienie wiadomości.
 4. Nie wykonujesz zadań niezwiązanych z Karolem (kod, wypracowania, tłumaczenia, porady). Odmawiasz jednym zdaniem: jesteś tu tylko w sprawach Karola.
@@ -89,7 +91,7 @@ ${f.projects}
 How to reach Karol: ${f.contact}.
 
 Rules:
-1. Keep replies short, three sentences at most, plain language, no lists unless asked. Answer in the visitor's language.
+1. Answer only in English, briefly, three sentences at most, plain language, no lists unless asked.
 2. Your goal: help, and naturally ask for an email or phone number so Karol can reply. Ask once, do not nag. Do not confirm receiving contact details until the visitor gives them.
 3. Never invent facts. If something is not in the facts, say you do not know and offer to take a message.
 4. Do not do tasks unrelated to Karol (code, essays, translations, advice). Decline in one sentence: you are here only for matters concerning Karol.
@@ -204,7 +206,22 @@ async function getJson(url) {
   }
 }
 
-// Which API the model server speaks, and whether MODEL is there. A lone model is taken as is.
+// No download needed: when MODEL is unset or missing, choose from what is installed.
+// Chat models of a few billion parameters first; embeddings, vision and coders are skipped.
+const PREFER = /instruct|chat|-it\b|bielik|qwen|llama|gemma|mistral|phi|hermes|aya|pllum/i;
+const POLISH = /bielik|pllum|qwen|gemma|aya|nemo|command-r/i; // models that hold up in Polish
+const AVOID = /embed|bge|nomic|minilm|e5|whisper|rerank|vision|llava|moondream|coder|code|math|sql|guard|tts|speech/i;
+function choose(names) {
+  const size = (n) => { const m = n.match(/(\d+(?:\.\d+)?)\s*b\b/i); return m ? +m[1] : null; };
+  const score = (n) => {
+    if (AVOID.test(n)) return -10;
+    const s = size(n);
+    return (PREFER.test(n) ? 2 : 0) + (POLISH.test(n) ? 1 : 0) + (s === null ? 1 : s >= 3 && s <= 14 ? 2 : s < 2 ? -1 : 0);
+  };
+  return names.slice().sort((a, b) => score(b) - score(a) || (size(a) ?? 50) - (size(b) ?? 50))[0] || "";
+}
+
+// Which API the model server speaks, and whether MODEL is there.
 async function detect() {
   let names = null, api = API;
   if (api !== "openai") {
@@ -218,8 +235,12 @@ async function detect() {
   if (names === null) return { live: false, api: API === "auto" ? "?" : API, names: [] };
   if (API === "auto") API = api;
   const has = names.includes(MODEL) || names.includes(MODEL + ":latest");
-  if (!has && names.length === 1) { console.log(new Date().toISOString(), `model ${MODEL} not found, using the only one: ${names[0]}`); MODEL = names[0]; }
-  return { live: has || names.length === 1, api, names };
+  if (!has && names.length) {
+    const pick = choose(names);
+    console.log(new Date().toISOString(), MODEL ? `model ${MODEL} is not installed, using ${pick}` : `MODEL unset, using ${pick}`, `(installed: ${names.join(", ")})`);
+    MODEL = pick;
+  }
+  return { live: names.length > 0, api, names };
 }
 
 async function modelLive() {
@@ -346,14 +367,17 @@ async function speak(req, res) {
   const body = await readJson(req);
   const text = clean(body.text, LIMITS.speech);
   if (!text) return send(res, 400, { error: "empty" });
+  const en = body.lang === "en";
+  const url = en && TTS_URL_EN ? TTS_URL_EN : TTS_URL;
+  const voice = (en ? TTS_VOICE_EN : TTS_VOICE) || "alloy";
   let audio;
-  if (TTS_URL) {
+  if (url) {
     const r = TTS_API === "piper"
-      ? await fetch(`${TTS_URL}/`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
-      : await fetch(`${TTS_URL}/v1/audio/speech`, {
+      ? await fetch(`${url}/`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+      : await fetch(`${url}/v1/audio/speech`, {
           method: "POST",
           headers: { "content-type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ model: "tts-1", input: text, voice: TTS_VOICE || "alloy", response_format: "mp3" })
+          body: JSON.stringify({ model: "tts-1", input: text, voice, response_format: "mp3" })
         });
     if (!r.ok) throw new Error("tts " + r.status);
     audio = Buffer.from(await r.arrayBuffer());
@@ -402,6 +426,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, async () => {
   console.log(`${NAME} relay on http://${HOST}:${PORT}  transcripts=${DIR}`);
   const d = await detect();
-  if (!d.live) console.log(`model server at ${LLM}: ${d.names.length ? "models " + d.names.join(", ") + " but MODEL=" + MODEL + " is not among them" : "not reachable"} -> Joi runs as the script until it answers`);
-  else console.log(`model ${MODEL} via ${d.api} API at ${LLM}`);
+  if (!d.live) console.log(`model server at ${LLM} is not reachable -> Joi runs as the script until it answers`);
+  else console.log(`model ${MODEL} via ${d.api} API at ${LLM}; voice: ${TTS_URL || TTS_CMD ? "server" : "browser"}`);
 });
