@@ -301,7 +301,7 @@ async function chat(req, res) {
   const ip = clientIp(req);
   if (!allow(ip, "chat", LIMITS.chatPer10min, 600000)) return send(res, 429, { error: "rate" });
   const body = await readJson(req);
-  const session = sessionRe.test(body.session) ? body.session : crypto.randomUUID();
+  const session = typeof body.session === "string" && sessionRe.test(body.session) ? body.session : crypto.randomUUID();
   const lang = body.lang === "en" ? "en" : "pl";
   const msgs = (Array.isArray(body.messages) ? body.messages : [])
     .slice(-LIMITS.history)
@@ -336,7 +336,7 @@ async function lead(req, res) {
   const ip = clientIp(req);
   if (!allow(ip, "lead", LIMITS.leadPerHour, 3600000)) return send(res, 429, { error: "rate" });
   const body = await readJson(req);
-  const session = sessionRe.test(body.session) ? body.session : crypto.randomUUID();
+  const session = typeof body.session === "string" && sessionRe.test(body.session) ? body.session : crypto.randomUUID();
   const lang = body.lang === "en" ? "en" : "pl";
   const item = {
     at: new Date().toISOString(),
