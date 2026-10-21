@@ -195,7 +195,9 @@ const authHeaders = () => (LLM_KEY ? { authorization: `Bearer ${LLM_KEY}` } : {}
 
 async function getJson(url) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 2500);
+  // ponytail: 8 s, bo ollama z duza biblioteka modeli potrafi mielic /api/tags kilka sekund
+  // (:11436 na Szponie: 4,5 s / 90 modeli). Krotszy limit = relay uznaje zywy model za martwy.
+  const t = setTimeout(() => ctrl.abort(), 8000);
   try {
     const r = await fetch(url, { signal: ctrl.signal, headers: authHeaders() });
     return r.ok ? await r.json() : null;
@@ -222,7 +224,19 @@ function choose(names) {
 }
 
 // Which API the model server speaks, and whether MODEL is there.
+// Wynik trzymany przez chwile: bez tego KAZDE /chat i /health placi za sondowanie serwera modeli
+// (zmierzone: 5,0 s doliczane do kazdej tury). Porazka cache'owana krocej, zeby model po starcie
+// zostal zauwazony szybko.
+let detected = { at: 0, val: null };
 async function detect() {
+  const ttl = detected.val && detected.val.live ? 30000 : 5000;
+  if (detected.val && Date.now() - detected.at < ttl) return detected.val;
+  const val = await detectRaw();
+  detected = { at: Date.now(), val };
+  return val;
+}
+
+async function detectRaw() {
   let names = null, api = API;
   if (api !== "openai") {
     const j = await getJson(`${LLM}/api/tags`);
